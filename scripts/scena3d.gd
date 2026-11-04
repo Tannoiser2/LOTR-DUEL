@@ -25,6 +25,7 @@ var gradino := {"G": 0, "B": 0}
 var scossa := 0.0
 var t := 0.0
 var auto_giro := true
+var mira_y := 1.4   # altezza a cui guarda la telecamera (più alta: il ponte scende sullo schermo)
 var mat_lava: StandardMaterial3D
 var mat_lava2: StandardMaterial3D
 var persistenti := []   # effetti che restano finché non si gioca la carta successiva
@@ -530,7 +531,7 @@ func _aggiorna_camera() -> void:
 		return
 	pitch = clamp(pitch, -1.25, 0.15)
 	dist = clamp(dist, 6.0, 30.0)
-	var centro := Vector3(0, 1.4, 0)
+	var centro := Vector3(0, mira_y, 0)
 	var dir := Vector3(sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch))
 	var j := Vector3.ZERO
 	if scossa > 0.0:
@@ -556,11 +557,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 func visuale(n: int) -> void:
 	auto_giro = false
+	mira_y = 1.4
 	match n:
 		0:
 			yaw = -0.12
-			pitch = -0.22
-			dist = 18.5
+			pitch = -0.2
+			dist = 19.5
+			mira_y = 4.6
 		1:
 			yaw = -PI / 2 + 0.2
 			pitch = -0.18

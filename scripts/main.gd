@@ -752,22 +752,27 @@ func _mostra_scambio(e: Dictionary) -> void:
 	lato[e["difensore"]] = e["carta_dif"]
 	if e["attaccante"] == e["difensore"]:
 		lato = {"G": e["carta_att"], "B": e["carta_dif"]}
-	# dove sono i personaggi sullo schermo
+	# le carte stanno sopra la testa dei personaggi, senza coprirli
 	var pos := {}
+	var alto_min := 232.0
 	for chi in ["G", "B"]:
-		var p3: Vector3 = scena.figure[chi].global_position + Vector3(0, 2.2 if chi == "G" else 3.4, 0)
-		var p2: Vector2 = scena.cam.unproject_position(p3) if not scena.cam.is_position_behind(p3) else Vector2(vs.x * (0.25 if chi == "G" else 0.75), vs.y * 0.4)
-		# sopra il personaggio, spostata verso il bordo dello schermo
-		p2.x += -w * 0.45 if chi == "G" else w * 0.45
-		p2.x = clamp(p2.x - w * 0.5, 12.0, vs.x - w - 12.0)
-		p2.y = clamp(p2.y - h - 10.0, 215.0, vs.y - CH - 100.0 - h)
+		var p3: Vector3 = scena.figure[chi].global_position + Vector3(0, 2.0 if chi == "G" else 3.6, 0)
+		var p2: Vector2 = scena.cam.unproject_position(p3) if not scena.cam.is_position_behind(p3) else Vector2(vs.x * (0.25 if chi == "G" else 0.75), vs.y * 0.6)
 		pos[chi] = p2
-	# se le carte si sovrappongono, si allargano
-	if abs(pos["G"].x - pos["B"].x) < w + 40:
-		var mezzo: float = (pos["G"].x + pos["B"].x) * 0.5
-		var sx: String = "G" if pos["G"].x <= pos["B"].x else "B"
-		pos[sx].x = clamp(mezzo - w - 40, 12.0, vs.x - w - 12.0)
-		pos[Motore.altro(sx)].x = clamp(mezzo + 40, 12.0, vs.x - w - 12.0)
+	# l'altezza disponibile sopra la testa più alta decide la misura delle carte
+	var testa: float = min(pos["G"].y, pos["B"].y) - 12.0
+	h = clamp(testa - alto_min, 150.0, w * 1.55)
+	w = h / 1.55
+	for chi in ["G", "B"]:
+		var x: float = pos[chi].x - w * 0.5 + (-w * 0.25 if chi == "G" else w * 0.25)
+		pos[chi] = Vector2(clamp(x, 12.0, vs.x - w - 12.0), max(alto_min, pos[chi].y - 12.0 - h))
+	if pos["B"].x - pos["G"].x < w + 60:
+		pos["G"].x = 12.0
+		pos["B"].x = vs.x - w - 12.0
+	# stessa altezza per entrambe: le righe dei simboli si allineano e i colpi vanno dritti
+	var y_c: float = min(pos["G"].y, pos["B"].y)
+	pos["G"].y = y_c
+	pos["B"].y = y_c
 	var centro: float = (pos["G"].x + pos["B"].x + w) * 0.5
 	for chi in ["G", "B"]:
 		var c := immagine_carta(tex_carta(lato[chi]), w, h)
