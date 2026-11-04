@@ -47,7 +47,7 @@ func _run():
 			var n0: int = main.st["n"]
 			main._applica(dd)
 			print("decisione ", dd, " n ", n0, " -> ", main.st["n"], " attesa ", main.st["attesa"].get("tipo"))
-			await create_timer(1.6).timeout
+			await create_timer(float(OS.get_environment("ATTESA")) if OS.get_environment("ATTESA") != "" else 1.6).timeout
 			await shot("scambio", 1)
 			quit(); return
 		main._applica(ia.scegli(main.st))

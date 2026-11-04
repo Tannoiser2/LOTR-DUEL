@@ -746,7 +746,7 @@ func _mostra_scambio(e: Dictionary) -> void:
 		return
 	svuota(popup_scambio)
 	var vs := get_viewport().get_visible_rect().size
-	var w := 120.0
+	var w: float = clamp(vs.x * 0.115, 120.0, 190.0)
 	var h := w * 1.55
 	var lato := {e["attaccante"]: e["carta_att"]}
 	lato[e["difensore"]] = e["carta_dif"]
@@ -757,8 +757,10 @@ func _mostra_scambio(e: Dictionary) -> void:
 	for chi in ["G", "B"]:
 		var p3: Vector3 = scena.figure[chi].global_position + Vector3(0, 2.2 if chi == "G" else 3.4, 0)
 		var p2: Vector2 = scena.cam.unproject_position(p3) if not scena.cam.is_position_behind(p3) else Vector2(vs.x * (0.25 if chi == "G" else 0.75), vs.y * 0.4)
+		# sopra il personaggio, spostata verso il bordo dello schermo
+		p2.x += -w * 0.45 if chi == "G" else w * 0.45
 		p2.x = clamp(p2.x - w * 0.5, 12.0, vs.x - w - 12.0)
-		p2.y = clamp(p2.y - h - 10.0, 180.0, vs.y - CH - 110.0 - h)
+		p2.y = clamp(p2.y - h - 10.0, 215.0, vs.y - CH - 100.0 - h)
 		pos[chi] = p2
 	# se le carte si sovrappongono, si allargano
 	if abs(pos["G"].x - pos["B"].x) < w + 40:
@@ -809,49 +811,100 @@ func _mostra_scambio(e: Dictionary) -> void:
 		var y: float = pos[chi].y + h * righe[x[0]]
 		# parte dal bordo della carta rivolto verso il centro
 		var x0: float = pos[chi].x + w if pos[chi].x + w * 0.5 < centro else pos[chi].x
-		var lungo: float = abs(centro - x0) * (0.55 if x[2] == COL_ORO else 0.95)
-		var x1: float = x0 + sign(centro - x0) * max(lungo, 40.0)
-		_freccia_sfumata(Vector2(x0, y), Vector2(x1, y), x[2], x[3])
+		if x[2] == COL_ORO:
+			# parata: si ferma prima del centro e svanisce
+			var x1: float = x0 + sign(centro - x0) * max(abs(centro - x0) * 0.6, 40.0)
+			_freccia_sfumata(Vector2(x0, y), Vector2(x1, y), x[2], x[3], false)
+		else:
+			# colpo: attraversa tutto, sfuma al centro e torna piena sulla carta colpita
+			var altro: String = Motore.altro(chi)
+			var xb: float = pos[altro].x if pos[altro].x > x0 else pos[altro].x + w
+			_freccia_sfumata(Vector2(x0, y), Vector2(xb, y), x[2], x[3], true)
 	popup_scambio.modulate.a = 0.0
 	var tw := create_tween()
 	tw.tween_property(popup_scambio, "modulate:a", 1.0, 0.15)
 	tw.tween_interval(3.4)
 	tw.tween_property(popup_scambio, "modulate:a", 0.0, 0.6)
 
-## Freccia che parte piena dalla carta e svanisce verso il centro (niente punta: si dissolve).
-func _freccia_sfumata(a: Vector2, b: Vector2, col: Color, ritardo := 0.0) -> void:
+## Freccia dalla carta: la parata svanisce prima del centro; il colpo passa, sfuma a metà e torna piena
+## sulla carta colpita, dove finisce con una punta.
+func _freccia_sfumata(a: Vector2, b: Vector2, col: Color, ritardo := 0.0, colpo := false) -> void:
+	var piena := Color(col.r, col.g, col.b, 1.0)
+	var vuota := Color(col.r, col.g, col.b, 0.0)
 	var l := Line2D.new()
-	l.points = PackedVector2Array([a, b])
-	l.width = 9
+	l.width = 10
 	var g := Gradient.new()
-	g.set_color(0, Color(col.r, col.g, col.b, 1.0))
-	g.set_color(1, Color(col.r, col.g, col.b, 0.0))
-	g.add_point(0.35, Color(col.r, col.g, col.b, 0.85))
-	l.gradient = g
 	var c := Curve.new()
-	c.add_point(Vector2(0, 1.0))
-	c.add_point(Vector2(1, 0.25))
+	if colpo:
+		g.set_color(0, piena)
+		g.set_color(1, piena)
+		g.add_point(0.5, Color(col.r, col.g, col.b, 0.18))
+		c.add_point(Vector2(0, 1.0))
+		c.add_point(Vector2(0.5, 0.45))
+		c.add_point(Vector2(1, 1.0))
+	else:
+		g.set_color(0, piena)
+		g.set_color(1, vuota)
+		g.add_point(0.35, Color(col.r, col.g, col.b, 0.85))
+		c.add_point(Vector2(0, 1.0))
+		c.add_point(Vector2(1, 0.25))
+	l.gradient = g
 	l.width_curve = c
 	l.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	popup_scambio.add_child(l)
-	# un alone morbido sotto la freccia
-	var alone := l.duplicate() as Line2D
-	alone.width = 20
+	l.texture_mode = Line2D.LINE_TEXTURE_NONE
+	var alone := Line2D.new()
+	alone.width = 22
+	alone.width_curve = c
 	var g2 := Gradient.new()
-	g2.set_color(0, Color(col.r, col.g, col.b, 0.35))
-	g2.set_color(1, Color(col.r, col.g, col.b, 0.0))
+	g2.offsets = g.offsets
+	var cs2 := PackedColorArray()
+	for cc in g.colors:
+		cs2.append(Color(cc.r, cc.g, cc.b, cc.a * 0.35))
+	g2.colors = cs2
 	alone.gradient = g2
 	popup_scambio.add_child(alone)
-	popup_scambio.move_child(alone, popup_scambio.get_child_count() - 2)
-	# la freccia scorre verso il centro
-	l.points = PackedVector2Array([a, a])
-	alone.points = PackedVector2Array([a, a])
+	popup_scambio.add_child(l)
+	var punta := Polygon2D.new()
+	if colpo:
+		var dir := (b - a).normalized()
+		var n := Vector2(-dir.y, dir.x)
+		punta.polygon = PackedVector2Array([b + dir * 4, b - dir * 16 + n * 11, b - dir * 16 - n * 11])
+		punta.color = piena
+		punta.visible = false
+		popup_scambio.add_child(punta)
+	l.visible = false
+	alone.visible = false
 	var tw := create_tween()
 	tw.tween_interval(ritardo + 0.15)
+	# la linea si allunga mantenendo la sfumatura giusta (punti fissi, si scopre con una maschera di lunghezza)
 	tw.tween_method(func(t: float):
+		l.visible = true
+		alone.visible = true
 		var p := a.lerp(b, t)
-		l.points = PackedVector2Array([a, p])
-		alone.points = PackedVector2Array([a, p]), 0.0, 1.0, 1.1).set_ease(Tween.EASE_OUT)
+		var pts := PackedVector2Array()
+		var passi := 16
+		for i in passi + 1:
+			pts.append(a.lerp(p, float(i) / passi))
+		l.points = pts
+		alone.points = pts
+		# il gradiente segue la lunghezza totale, non quella già scoperta
+		l.gradient = _taglia(g, t)
+		alone.gradient = _taglia(g2, t)
+		if colpo and t >= 0.999:
+			punta.visible = true, 0.0, 1.0, 1.4 if colpo else 0.9).set_ease(Tween.EASE_IN_OUT)
+
+## Il pezzo [0, t] di un gradiente, riscalato su [0, 1].
+func _taglia(g: Gradient, t: float) -> Gradient:
+	var out := Gradient.new()
+	var n := 8
+	var cols := []
+	for i in n + 1:
+		cols.append(g.sample(t * float(i) / n))
+	out.set_color(0, cols[0])
+	out.set_color(1, cols[n])
+	for i in range(1, n):
+		out.add_point(float(i) / n, cols[i])
+	return out
 
 # ============================================================ disegno del tavolo
 
