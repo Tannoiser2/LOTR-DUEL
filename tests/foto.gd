@@ -43,8 +43,12 @@ func _run():
 		if modo == "partita" and fatte >= mosse and a["tipo"] == "gioca":
 			# lascia vedere lo scambio in corso
 			await shot("partita", 10)
-			main._applica(ia.scegli(main.st))
-			await shot("scambio", 25)
+			var dd: Dictionary = ia.scegli(main.st)
+			var n0: int = main.st["n"]
+			main._applica(dd)
+			print("decisione ", dd, " n ", n0, " -> ", main.st["n"], " attesa ", main.st["attesa"].get("tipo"))
+			await create_timer(1.6).timeout
+			await shot("scambio", 1)
 			quit(); return
 		main._applica(ia.scegli(main.st))
 		fatte += 1

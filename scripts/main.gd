@@ -521,7 +521,7 @@ func _apri_tavolo() -> void:
 		alto.add_child(b)
 	# carte dell'avversario (in alto) e riga delle carte giocate
 	box_avv = Control.new()
-	box_avv.position = Vector2(14, 50)
+	box_avv.position = Vector2(14, 46)
 	box_avv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(box_avv)
 	box_riga = Control.new()
@@ -696,13 +696,13 @@ func _anima(ev: Array) -> void:
 		match ee["t"]:
 			"carta":
 				_dopo(t, func(): scena.carta_giocata(ee["chi"]))
-				t += 0.25
+				t += 0.6 if ee["chi"] == "B" else 0.35
 			"scambio":
 				_dopo(t, func(): _mostra_scambio(ee); scena.scambio(ee["attaccante"], ee["difensore"], ee["subiti"], ee["inflitti"], ee["parati"]))
-				t += 1.3
+				t += 2.6
 			"speciale":
 				_dopo(t, func(): _banner(Dati.carta(ee["id"])["nome"]); scena.speciale(ee["spec"]))
-				t += 1.4
+				t += 2.0
 			"annullata":
 				_dopo(t, func(): _banner(Dati.carta(ee["id"])["nome"] + ": senza effetto", 30))
 				t += 1.0
@@ -791,31 +791,35 @@ func _mostra_scambio(e: Dictionary) -> void:
 		l.position = pos[chi] + Vector2(0, -22)
 		popup_scambio.add_child(l)
 	var righe := [0.2, 0.42, 0.64, 0.86]
-	for r in 4:
-		var da := []
-		if r in e["subiti"]:
-			da.append([e["attaccante"], COL_G if e["attaccante"] == "G" else COL_B])
-		elif r in e["inflitti"]:
-			da.append([e["difensore"], COL_G if e["difensore"] == "G" else COL_B])
-		elif r in e["parati"]:
-			da.append(["G", COL_ORO])
-			da.append(["B", COL_ORO])
-		for x in da:
-			var chi: String = x[0]
-			var y: float = pos[chi].y + h * righe[r]
-			# parte dal bordo della carta rivolto verso il centro
-			var x0: float = pos[chi].x + w if pos[chi].x + w * 0.5 < centro else pos[chi].x
-			var lungo: float = abs(centro - x0) * (0.55 if x[1] == COL_ORO else 0.95)
-			var x1: float = x0 + sign(centro - x0) * max(lungo, 40.0)
-			_freccia_sfumata(Vector2(x0, y), Vector2(x1, y), x[1])
+	# stesso ordine e stessi tempi dei colpi nella scena 3D
+	var elenco := []
+	var rit := 0.0
+	for r in e["subiti"]:
+		elenco.append([r, e["attaccante"], COL_G if e["attaccante"] == "G" else COL_B, rit])
+		rit += 0.38
+	for r in e["inflitti"]:
+		elenco.append([r, e["difensore"], COL_G if e["difensore"] == "G" else COL_B, rit])
+		rit += 0.38
+	for r in e["parati"]:
+		elenco.append([r, "G", COL_ORO, rit])
+		elenco.append([r, "B", COL_ORO, rit])
+		rit += 0.3
+	for x in elenco:
+		var chi: String = x[1]
+		var y: float = pos[chi].y + h * righe[x[0]]
+		# parte dal bordo della carta rivolto verso il centro
+		var x0: float = pos[chi].x + w if pos[chi].x + w * 0.5 < centro else pos[chi].x
+		var lungo: float = abs(centro - x0) * (0.55 if x[2] == COL_ORO else 0.95)
+		var x1: float = x0 + sign(centro - x0) * max(lungo, 40.0)
+		_freccia_sfumata(Vector2(x0, y), Vector2(x1, y), x[2], x[3])
 	popup_scambio.modulate.a = 0.0
 	var tw := create_tween()
 	tw.tween_property(popup_scambio, "modulate:a", 1.0, 0.15)
-	tw.tween_interval(1.35)
-	tw.tween_property(popup_scambio, "modulate:a", 0.0, 0.35)
+	tw.tween_interval(3.4)
+	tw.tween_property(popup_scambio, "modulate:a", 0.0, 0.6)
 
 ## Freccia che parte piena dalla carta e svanisce verso il centro (niente punta: si dissolve).
-func _freccia_sfumata(a: Vector2, b: Vector2, col: Color) -> void:
+func _freccia_sfumata(a: Vector2, b: Vector2, col: Color, ritardo := 0.0) -> void:
 	var l := Line2D.new()
 	l.points = PackedVector2Array([a, b])
 	l.width = 9
@@ -843,10 +847,11 @@ func _freccia_sfumata(a: Vector2, b: Vector2, col: Color) -> void:
 	l.points = PackedVector2Array([a, a])
 	alone.points = PackedVector2Array([a, a])
 	var tw := create_tween()
+	tw.tween_interval(ritardo + 0.15)
 	tw.tween_method(func(t: float):
 		var p := a.lerp(b, t)
 		l.points = PackedVector2Array([a, p])
-		alone.points = PackedVector2Array([a, p]), 0.0, 1.0, 0.35).set_ease(Tween.EASE_OUT)
+		alone.points = PackedVector2Array([a, p]), 0.0, 1.0, 1.1).set_ease(Tween.EASE_OUT)
 
 # ============================================================ disegno del tavolo
 
@@ -856,7 +861,7 @@ func _aggiorna() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	var duello: int = st["duello"]
 	lbl_titolo.text = "Duello finale" if duello == 4 else "Duello %d di 3" % duello
-	lbl_ponte.text = "Gradini sul ponte: Gandalf %d, Balrog %d   " % [st["figura"]["G"], st["figura"]["B"]]
+	lbl_ponte.text = ""
 	_disegna_traccia(vs)
 	_disegna_mano(vs)
 	_disegna_avversario(vs)
@@ -873,10 +878,10 @@ func _aggiorna() -> void:
 ## Gandalf (bianco) nella metà alta delle caselle, il Balrog (rosso) in quella bassa.
 func _disegna_traccia(vs: Vector2) -> void:
 	svuota(traccia)
-	var cw := 24.0
-	var chh := 30.0
+	var cw := 22.0
+	var chh := 26.0
 	var largo := 20 * cw
-	traccia.position = Vector2(vs.x * 0.5 - largo * 0.5, 50)
+	traccia.position = Vector2(vs.x * 0.5 - largo * 0.5 + 20, 12)
 	var fondo := Panel.new()
 	fondo.add_theme_stylebox_override("panel", stile(Color(0.04, 0.03, 0.06, 0.72), Color(0.45, 0.4, 0.6), 8, 1))
 	fondo.size = Vector2(largo + 96, chh + 12)
@@ -912,13 +917,13 @@ func _disegna_traccia(vs: Vector2) -> void:
 		sb.border_color = Color(0.08, 0.08, 0.08)
 		sb.set_border_width_all(2)
 		g.add_theme_stylebox_override("panel", sb)
-		g.size = Vector2(14, 14)
-		g.position = Vector2((e + 4) * cw + 4, 1 if chi == "G" else 15)
+		g.size = Vector2(12, 12)
+		g.position = Vector2((e + 4) * cw + 4, 1 if chi == "G" else 13)
 		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		traccia.add_child(g)
 	var vuote: int = max(0, abs(st["energia"]["G"] - st["energia"]["B"]) - 1)
 	var info := etichetta("Gandalf %d, Balrog %d, caselle vuote %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 15, Color(0.9, 0.86, 0.78))
-	info.position = Vector2(0, chh + 6)
+	info.position = Vector2(-76, chh + 5)
 	traccia.add_child(info)
 
 func _opzioni_mie() -> Array:
@@ -1037,14 +1042,14 @@ func _disegna_riga(vs: Vector2) -> void:
 	var riga: Array = st["riga"]
 	if riga.is_empty():
 		return
-	var w := 60.0
-	var h := 93.0
+	var w := 78.0
+	var h := 121.0
 	var a: Dictionary = st["attesa"]
 	var frusta: bool = not a.is_empty() and a["tipo"] == "frusta" and a["chi"] == spettatore() and occupato <= 0.0
 	var n := riga.size()
-	var passo: float = min(w + 5, (vs.x - 700) / max(1, n))
+	var passo: float = min(w + 5, (vs.x - 420) / max(1, n))
 	var x0: float = vs.x * 0.5 - (passo * (n - 1) + w) * 0.5
-	var y0 := 112.0
+	var y0 := 76.0
 	for i in n:
 		var r: Dictionary = riga[i]
 		var c: Control
