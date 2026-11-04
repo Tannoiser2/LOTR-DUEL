@@ -1,0 +1,59 @@
+{
+  "rules": {
+    "lotrduel": {
+      "rooms": {
+        "$code": {
+          ".read": "auth != null",
+          ".write": "auth != null && data.child('host').val() === auth.uid && !newData.exists()",
+          ".validate": "$code.length === 4",
+          "host": {
+            ".write": "auth != null && !data.exists() && newData.val() === auth.uid"
+          },
+          "created": {
+            ".write": "auth != null && !data.exists()"
+          },
+          "cfg": {
+            ".write": "auth != null && newData.parent().child('host').val() === auth.uid",
+            ".validate": "newData.isString() && newData.val().length <= 2000"
+          },
+          "status": {
+            ".write": "auth != null && newData.parent().child('host').val() === auth.uid",
+            ".validate": "newData.isString() && newData.val().length <= 12"
+          },
+          "game": {
+            ".write": "auth != null && newData.parent().child('host').val() === auth.uid",
+            ".validate": "newData.isString() && newData.val().length <= 4000"
+          },
+          "members": {
+            "$uid": {
+              ".write": "auth != null && $uid === auth.uid",
+              ".validate": "newData.isBoolean()"
+            }
+          },
+          "seats": {
+            "$i": {
+              ".write": "auth != null && ((!data.exists() && newData.child('uid').val() === auth.uid) || data.child('uid').val() === auth.uid || root.child('lotrduel/rooms/' + $code + '/host').val() === auth.uid || (newData.child('uid').val() === auth.uid && data.child('name').val() === newData.child('name').val()))",
+              ".validate": "newData.hasChildren(['uid', 'name']) && newData.child('name').isString() && newData.child('name').val().length <= 24"
+            }
+          },
+          "log": {
+            "$n": {
+              ".write": "auth != null && !data.exists() && root.child('lotrduel/rooms/' + $code + '/members/' + auth.uid).exists()",
+              ".validate": "newData.hasChildren(['d']) && newData.child('d').isString() && newData.child('d').val().length <= 2000"
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "salvataggi": {
+        "$uid": {
+          ".read": "auth != null && $uid === auth.uid",
+          ".write": "auth != null && $uid === auth.uid",
+          ".validate": "newData.hasChildren(['stato']) && newData.child('stato').isString() && newData.child('stato').val().length <= 1500000"
+        }
+      }
+    }
+  }
+}
