@@ -240,7 +240,7 @@ func _figure() -> void:
 	bastone_luce.omni_range = 7
 	var modelli := ResourceLoader.exists("res://assets/3d/gandalf.glb")
 	bastone_luce.position = Vector3(0.2, 2.62, 0.22) if modelli else Vector3(0.0, 2.2, 0.35)
-	figure["G"].add_child(bastone_luce)
+	_aggancia_a_osso(figure["G"], "mano_sx", bastone_luce)
 	var punta := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.09
@@ -280,6 +280,43 @@ func _trova_animatore(n: Node) -> AnimationPlayer:
 		var a := _trova_animatore(c)
 		if a:
 			return a
+	return null
+
+## Mette il nodo (posizione data nello spazio della figura) su un osso dello scheletro, così segue le animazioni.
+func _aggancia_a_osso(fig: Node3D, osso: String, nodo: Node3D) -> void:
+	var sk := _trova_scheletro(fig)
+	var idx := sk.find_bone(osso) if sk else -1
+	if idx < 0:
+		fig.add_child(nodo)
+		return
+	var att := BoneAttachment3D.new()
+	att.bone_name = osso
+	sk.add_child(att)
+	# posizione nello spazio dello scheletro, poi relativa all'osso in posa di riposo
+	var in_sk: Vector3 = sk.transform.affine_inverse() * _locale_a(fig, sk) * nodo.position
+	nodo.position = sk.get_bone_global_rest(idx).affine_inverse() * in_sk
+	att.add_child(nodo)
+
+## Trasformazione dallo spazio della figura allo spazio del genitore dello scheletro.
+func _locale_a(fig: Node3D, sk: Node3D) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var n: Node = sk.get_parent()
+	var catena := []
+	while n != null and n != fig:
+		catena.push_front(n)
+		n = n.get_parent()
+	for c in catena:
+		if c is Node3D:
+			t = t * (c as Node3D).transform
+	return t.affine_inverse()
+
+func _trova_scheletro(n: Node) -> Skeleton3D:
+	if n is Skeleton3D:
+		return n
+	for c in n.get_children():
+		var k := _trova_scheletro(c)
+		if k:
+			return k
 	return null
 
 func _carica_o(path: String, ripiego: Callable) -> Node3D:
