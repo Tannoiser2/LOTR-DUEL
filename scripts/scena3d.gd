@@ -225,6 +225,12 @@ func _figure() -> void:
 	figure["B"] = _carica_o("res://assets/3d/balrog.glb", _balrog_semplice)
 	for chi in ["G", "B"]:
 		add_child(figure[chi])
+		var ap := _trova_animatore(figure[chi])
+		if ap:
+			animatori[chi] = ap
+			if ap.has_animation("riposo"):
+				ap.get_animation("riposo").loop_mode = Animation.LOOP_LINEAR
+				ap.play("riposo")
 		figure[chi].position = pos_gradino(chi, 0)
 		figure[chi].rotation.y = PI / 2 if chi == "G" else -PI / 2
 	# la luce del bastone di Gandalf
@@ -233,7 +239,7 @@ func _figure() -> void:
 	bastone_luce.light_energy = 2.2
 	bastone_luce.omni_range = 7
 	var modelli := ResourceLoader.exists("res://assets/3d/gandalf.glb")
-	bastone_luce.position = Vector3(-0.4, 1.84, 0.19) if modelli else Vector3(0.0, 2.2, 0.35)
+	bastone_luce.position = Vector3(0.2, 2.62, 0.22) if modelli else Vector3(0.0, 2.2, 0.35)
 	figure["G"].add_child(bastone_luce)
 	var punta := MeshInstance3D.new()
 	var sm := SphereMesh.new()
@@ -253,8 +259,28 @@ func _figure() -> void:
 	figure["B"].add_child(lb)
 	luci["B"] = lb
 	luci["G"] = bastone_luce
-	fuoco_balrog = _fuoco(Vector3(0, 1.9, -0.2), 70, 0.9)
+	fuoco_balrog = _fuoco(Vector3(0, 2.6, -0.6), 50, 0.8)
 	figure["B"].add_child(fuoco_balrog)
+
+var animatori := {}
+
+## Animazioni previste nei modelli: riposo (ciclo), attacco, colpito, sali, caduta, vittoria.
+func anima(chi: String, nome: String) -> void:
+	var ap: AnimationPlayer = animatori.get(chi)
+	if ap == null or not ap.has_animation(nome):
+		return
+	ap.play(nome, 0.15)
+	if nome != "riposo" and nome != "caduta" and nome != "vittoria" and ap.has_animation("riposo"):
+		ap.queue("riposo")
+
+func _trova_animatore(n: Node) -> AnimationPlayer:
+	if n is AnimationPlayer:
+		return n
+	for c in n.get_children():
+		var a := _trova_animatore(c)
+		if a:
+			return a
+	return null
 
 func _carica_o(path: String, ripiego: Callable) -> Node3D:
 	if ResourceLoader.exists(path):
@@ -416,6 +442,7 @@ func metti_figure(fg: int, fb: int) -> void:
 ## La figura sale i gradini uno alla volta.
 func sali(chi: String, da: int, a: int) -> void:
 	gradino[chi] = a
+	anima(chi, "sali")
 	var tw := create_tween()
 	var prima := pos_gradino(chi, da)
 	for k in range(da + 1, a + 1):
@@ -500,6 +527,7 @@ func _testa(chi: String) -> Vector3:
 ## Una carta giocata: il bagliore di chi la gioca.
 func carta_giocata(chi: String) -> void:
 	_lampo(chi, 3.0)
+	anima(chi, "attacco")
 	if chi == "B":
 		var b := _fuoco(Vector3(0, 1.6, 0), 60, 0.9)
 		b.one_shot = true
@@ -532,6 +560,7 @@ func _colpo(da: String, a: String, riga: int, ritardo: float) -> void:
 		_palla_fuoco(p0, p1)
 	await get_tree().create_timer(0.3).timeout
 	_lampo(a, 5.0)
+	anima(a, "colpito")
 	scossa = min(1.0, scossa + 0.35)
 	var ferita := _fuoco(figure[a].to_local(p1), 30, 0.3) if a == "B" else _scintille_su(p1, COL_G)
 	if a == "B":
@@ -752,6 +781,8 @@ func _frusta() -> void:
 ## Fine partita: il ponte si spezza sotto lo sconfitto, che precipita nell'abisso.
 func caduta(perdente: String) -> void:
 	var f: Node3D = figure[perdente]
+	anima(perdente, "caduta")
+	anima(Motore.altro(perdente), "vittoria")
 	var tw := create_tween()
 	tw.tween_interval(0.6)
 	tw.tween_property(f, "position", f.position + Vector3(0, 0.3, 0), 0.25)

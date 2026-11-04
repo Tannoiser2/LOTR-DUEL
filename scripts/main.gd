@@ -4,8 +4,8 @@
 extends Node
 
 const SALVA_LOCALE := "user://partita_lotrduel.json"
-const CW := 128.0   # larghezza carta in mano
-const CH := 198.0
+const CW := 108.0   # larghezza carta in mano
+const CH := 167.0
 const COL_ORO := Color(0.93, 0.8, 0.5)
 const COL_G := Color(0.78, 0.86, 1.0)
 const COL_B := Color(1.0, 0.5, 0.2)
@@ -55,6 +55,8 @@ var popup_scambio: Control
 var banner: Label
 var pannello_riserve: Label
 var lbl_incantata: Control
+var finestra_diario: Control
+var lbl_ultimo: Label
 
 func _ready() -> void:
 	randomize()
@@ -515,51 +517,50 @@ func _apri_tavolo() -> void:
 	alto.add_child(sp)
 	lbl_ponte = etichetta("", F_TITOLO, 19, COL_TESTO)
 	alto.add_child(lbl_ponte)
-	for b in [bottone("Visuale", _cambia_visuale, Color(0.15, 0.12, 0.1), 15), bottone("Regole", mostra_regole, Color(0.15, 0.12, 0.1), 15), bottone("Menu", _chiedi_menu, Color(0.15, 0.12, 0.1), 15)]:
+	for b in [bottone("Visuale", _cambia_visuale, Color(0.15, 0.12, 0.1), 15), bottone("Diario", _apri_diario, Color(0.15, 0.12, 0.1), 15), bottone("Regole", mostra_regole, Color(0.15, 0.12, 0.1), 15), bottone("Menu", _chiedi_menu, Color(0.15, 0.12, 0.1), 15)]:
 		alto.add_child(b)
 	# carte dell'avversario (in alto) e riga delle carte giocate
 	box_avv = Control.new()
-	box_avv.position = Vector2(150, 48)
+	box_avv.position = Vector2(14, 50)
 	box_avv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(box_avv)
 	box_riga = Control.new()
 	box_riga.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(box_riga)
-	# tracciato dell'energia a sinistra
+	# tracciato dell'energia: una striscia sottile in alto al centro
 	traccia = Control.new()
-	traccia.position = Vector2(14, 60)
 	traccia.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(traccia)
-	# diario a destra
+	# il diario si apre in una finestra a parte (pulsante «Diario»)
 	diario = RichTextLabel.new()
 	diario.bbcode_enabled = true
 	diario.scroll_following = true
-	diario.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	diario.offset_left = -300
-	diario.offset_right = -10
-	diario.offset_top = 170
-	diario.offset_bottom = -300
-	diario.add_theme_font_size_override("normal_font_size", 16)
-	diario.add_theme_color_override("default_color", Color(0.9, 0.86, 0.8))
-	diario.add_theme_stylebox_override("normal", stile(Color(0.03, 0.02, 0.02, 0.55), Color(0.35, 0.25, 0.15), 8, 1))
-	tavolo.add_child(diario)
+	diario.add_theme_font_size_override("normal_font_size", 17)
+	diario.add_theme_color_override("default_color", Color(0.92, 0.88, 0.82))
 	pannello_riserve = etichetta("", F_TESTO, 16, Color(0.9, 0.85, 0.78))
 	pannello_riserve.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	pannello_riserve.position = Vector2(-300, 52)
-	pannello_riserve.size = Vector2(290, 110)
+	pannello_riserve.position = Vector2(-330, 50)
+	pannello_riserve.size = Vector2(318, 110)
 	pannello_riserve.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pannello_riserve.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tavolo.add_child(pannello_riserve)
 	# messaggio e mano
 	lbl_msg = etichetta("", F_TITOLO, 21, Color(1, 0.93, 0.78))
 	lbl_msg.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	lbl_msg.offset_top = -CH - 64
-	lbl_msg.offset_bottom = -CH - 26
+	lbl_msg.offset_top = -CH - 58
+	lbl_msg.offset_bottom = -CH - 24
 	lbl_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tavolo.add_child(lbl_msg)
+	# l'ultima riga del diario, piccola, sopra il messaggio
+	lbl_ultimo = etichetta("", F_CORSIVO, 17, Color(0.92, 0.86, 0.76))
+	lbl_ultimo.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	lbl_ultimo.offset_top = -CH - 84
+	lbl_ultimo.offset_bottom = -CH - 58
+	lbl_ultimo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tavolo.add_child(lbl_ultimo)
 	box_mano = Control.new()
 	box_mano.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	box_mano.offset_top = -CH - 18
+	box_mano.offset_top = -CH - 12
 	box_mano.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(box_mano)
 	lbl_incantata = Control.new()
@@ -573,6 +574,12 @@ func _apri_tavolo() -> void:
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.modulate.a = 0
 	tavolo.add_child(banner)
+	finestra_diario = Control.new()
+	finestra_diario.set_anchors_preset(Control.PRESET_FULL_RECT)
+	finestra_diario.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	finestra_diario.visible = false
+	tavolo.add_child(finestra_diario)
+	_costruisci_diario()
 	popup_scambio = Control.new()
 	popup_scambio.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(popup_scambio)
@@ -582,6 +589,28 @@ func _apri_tavolo() -> void:
 	tavolo.add_child(dialogo)
 	get_viewport().size_changed.connect(_aggiorna)
 	_aggiorna()
+
+func _costruisci_diario() -> void:
+	var p := pannello(Color(0.05, 0.03, 0.02, 0.94))
+	p.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	p.offset_left = -440
+	p.offset_right = -14
+	p.offset_top = -250
+	p.offset_bottom = 250
+	finestra_diario.add_child(p)
+	var v := VBoxContainer.new()
+	p.add_child(v)
+	var h := HBoxContainer.new()
+	v.add_child(h)
+	var t := etichetta("Diario del duello", F_TITOLO, 20, COL_ORO)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(t)
+	h.add_child(bottone("Chiudi", func(): finestra_diario.visible = false, Color(0.15, 0.12, 0.1), 14))
+	diario.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(diario)
+
+func _apri_diario() -> void:
+	finestra_diario.visible = not finestra_diario.visible
 
 func _cambia_visuale() -> void:
 	var n: int = (scena.get_meta("v", 0) + 1) % 4
@@ -776,8 +805,8 @@ func _aggiorna() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	var duello: int = st["duello"]
 	lbl_titolo.text = "Duello finale" if duello == 4 else "Duello %d di 3" % duello
-	lbl_ponte.text = "Ponte: Gandalf %d  –  Balrog %d   " % [st["figura"]["G"], st["figura"]["B"]]
-	_disegna_traccia()
+	lbl_ponte.text = "Gradini sul ponte: Gandalf %d, Balrog %d   " % [st["figura"]["G"], st["figura"]["B"]]
+	_disegna_traccia(vs)
 	_disegna_mano(vs)
 	_disegna_avversario(vs)
 	_disegna_riga(vs)
@@ -786,57 +815,59 @@ func _aggiorna() -> void:
 	for l in st["diario"].slice(-30):
 		testo += l + "\n"
 	diario.text = testo
+	lbl_ultimo.text = st["diario"][-1] if not st["diario"].is_empty() else ""
 	lbl_msg.text = Motore.descrivi_attesa(st)
 
-func _disegna_traccia() -> void:
+## Il tracciato dell'energia in una striscia: a destra più energia, a sinistra l'area negativa.
+## Gandalf (bianco) nella metà alta delle caselle, il Balrog (rosso) in quella bassa.
+func _disegna_traccia(vs: Vector2) -> void:
 	svuota(traccia)
-	var cw := 64.0
-	var chh := 25.0
+	var cw := 24.0
+	var chh := 30.0
+	var largo := 20 * cw
+	traccia.position = Vector2(vs.x * 0.5 - largo * 0.5, 50)
 	var fondo := Panel.new()
-	fondo.add_theme_stylebox_override("panel", stile(Color(0.05, 0.04, 0.08, 0.75), Color(0.45, 0.4, 0.6), 8, 1))
-	fondo.size = Vector2(cw + 52, 20 * chh + 44)
-	fondo.position = Vector2(-6, -6)
+	fondo.add_theme_stylebox_override("panel", stile(Color(0.04, 0.03, 0.06, 0.72), Color(0.45, 0.4, 0.6), 8, 1))
+	fondo.size = Vector2(largo + 96, chh + 12)
+	fondo.position = Vector2(-80, -6)
 	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	traccia.add_child(fondo)
 	var lab := etichetta("Energia", F_TITOLO, 14, COL_ORO)
-	lab.position = Vector2(8, -4)
+	lab.position = Vector2(-72, 4)
 	traccia.add_child(lab)
 	for i in 20:
-		var val := 15 - i
+		var val := i - 4
 		var r := Panel.new()
-		var col := Color(0.16, 0.18, 0.42) if val > 0 else Color(0.32, 0.12, 0.14)
-		var bordo := Color(0.5, 0.55, 0.8) if val > 0 else Color(0.7, 0.3, 0.3)
+		var col := Color(0.16, 0.18, 0.42) if val > 0 else Color(0.34, 0.11, 0.13)
+		var bordo := Color(0.45, 0.5, 0.75) if val > 0 else Color(0.65, 0.28, 0.28)
+		var w := 1
 		if val == Motore.INIZIO_FINALE:
 			bordo = Color(1.0, 0.6, 0.2)
+			w = 2
 		elif val == Motore.INIZIO_DUELLO:
 			bordo = Color(1, 1, 1)
-		r.add_theme_stylebox_override("panel", stile(col, bordo, 3, 2 if val in [10, 15] else 1))
-		r.position = Vector2(0, 22 + i * chh)
-		r.size = Vector2(cw, chh - 3)
+			w = 2
+		r.add_theme_stylebox_override("panel", stile(col, bordo, 3, w))
+		r.position = Vector2(i * cw, 0)
+		r.size = Vector2(cw - 2, chh)
 		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		traccia.add_child(r)
-		var n := etichetta(str(val) if val > 0 else "-", F_TESTO, 13, Color(0.8, 0.8, 0.9, 0.7))
-		n.position = Vector2(cw + 6, 22 + i * chh)
-		traccia.add_child(n)
 	for chi in ["G", "B"]:
 		var e: int = st["energia"][chi]
-		var i := 15 - e
 		var g := Panel.new()
-		var s := StyleBoxFlat.new()
-		s.bg_color = Color(0.85, 0.88, 0.95) if chi == "G" else Color(0.85, 0.15, 0.08)
-		s.set_corner_radius_all(9)
-		s.border_color = Color(0.1, 0.1, 0.1)
-		s.set_border_width_all(2)
-		s.shadow_color = (COL_G if chi == "G" else COL_B) * Color(1, 1, 1, 0.8)
-		s.shadow_size = 7
-		g.add_theme_stylebox_override("panel", s)
-		g.size = Vector2(18, 18)
-		g.position = Vector2(10 if chi == "G" else 36, 22 + i * chh + 2)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.9, 0.92, 1.0) if chi == "G" else Color(0.9, 0.18, 0.08)
+		sb.set_corner_radius_all(7)
+		sb.border_color = Color(0.08, 0.08, 0.08)
+		sb.set_border_width_all(2)
+		g.add_theme_stylebox_override("panel", sb)
+		g.size = Vector2(14, 14)
+		g.position = Vector2((e + 4) * cw + 4, 1 if chi == "G" else 15)
 		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		traccia.add_child(g)
-	var vuote: int = abs(st["energia"]["G"] - st["energia"]["B"]) - 1
-	var info := etichetta("vuote: %d" % max(vuote, 0), F_TESTO, 14, Color(0.9, 0.85, 0.75))
-	info.position = Vector2(4, 22 + 20 * chh)
+	var vuote: int = max(0, abs(st["energia"]["G"] - st["energia"]["B"]) - 1)
+	var info := etichetta("Gandalf %d, Balrog %d, caselle vuote %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 15, Color(0.9, 0.86, 0.78))
+	info.position = Vector2(0, chh + 6)
 	traccia.add_child(info)
 
 func _opzioni_mie() -> Array:
@@ -860,7 +891,7 @@ func _disegna_mano(vs: Vector2) -> void:
 	var n := mano.size()
 	if n == 0:
 		return
-	var passo: float = min(CW + 8, (vs.x - 640) / max(1, n))
+	var passo: float = min(CW + 6, (vs.x - 500) / max(1, n))
 	var x0: float = vs.x * 0.5 - (passo * (n - 1) + CW) * 0.5
 	var ordinate := mano.duplicate()
 	ordinate.sort()
@@ -886,11 +917,11 @@ func _carta_cliccabile(id: int, w: float, h: float, attiva: bool) -> Control:
 	b.pivot_offset = Vector2(w * 0.5, h)
 	if not attiva:
 		b.modulate = Color(0.72, 0.7, 0.68) if _opzioni_mie().size() > 0 else Color(1, 1, 1)
-		b.mouse_entered.connect(func(): b.scale = Vector2(1.5, 1.5); b.z_index = 10)
+		b.mouse_entered.connect(func(): b.scale = Vector2(1.7, 1.7); b.z_index = 10)
 		b.mouse_exited.connect(func(): b.scale = Vector2.ONE; b.z_index = 0)
 		return b
 	b.mouse_entered.connect(func():
-		b.scale = Vector2(1.5, 1.5)
+		b.scale = Vector2(1.7, 1.7)
 		b.z_index = 10)
 	b.mouse_exited.connect(func():
 		b.scale = Vector2.ONE
@@ -922,37 +953,32 @@ func _disegna_avversario(vs: Vector2) -> void:
 	var mano: Array = st["mano"][chi].duplicate()
 	mano.sort()
 	var vede := Motore.vede_mano(st, spettatore())
-	var w := 54.0
-	var h := 84.0
-	var x0: float = vs.x * 0.5 - 150 - mano.size() * (w + 4) * 0.5
-	var nome := etichetta(nomi[chi], F_TITOLO, 15, COL_G if chi == "G" else COL_B)
-	nome.position = Vector2(x0 - 170, 2)
-	box_avv.position = Vector2(0, 48)
+	var nome := etichetta("%s: %d cart%s in mano%s" % [nomi[chi], mano.size(), "a" if mano.size() == 1 else "e", " (scoperte)" if vede else ""], F_TITOLO, 15, COL_G if chi == "G" else COL_B)
 	box_avv.add_child(nome)
-	for k in mano.size():
-		var id: int = mano[k]
+	var w := 46.0
+	var h := 71.0
+	var k := 0
+	for id in mano:
 		var scoperta: bool = vede or (spettatore() == "G" and id in st["rivelate"])
-		var t := immagine_carta(tex_carta(id) if scoperta else tex_dorso(chi), w, h)
-		t.position = Vector2(x0 + k * (w + 4), 0)
-		if scoperta:
-			t.mouse_filter = Control.MOUSE_FILTER_PASS
-			t.pivot_offset = Vector2(w * 0.5, 0)
-			t.mouse_entered.connect(func(): t.scale = Vector2(2.6, 2.6); t.z_index = 10)
-			t.mouse_exited.connect(func(): t.scale = Vector2.ONE; t.z_index = 0)
+		if not scoperta:
+			continue
+		var t := immagine_carta(tex_carta(id), w, h)
+		t.position = Vector2(k * (w + 3), 26)
+		t.mouse_filter = Control.MOUSE_FILTER_PASS
+		t.pivot_offset = Vector2(0, 0)
+		t.mouse_entered.connect(func(): t.scale = Vector2(3, 3); t.z_index = 10)
+		t.mouse_exited.connect(func(): t.scale = Vector2.ONE; t.z_index = 0)
 		box_avv.add_child(t)
-	if vede:
-		var l := etichetta("mano scoperta", F_CORSIVO, 15, COL_ORO)
-		l.position = Vector2(x0 - 170, 24)
-		box_avv.add_child(l)
+		k += 1
 	# la carta incantata, scoperta sul tavolo
 	svuota(lbl_incantata)
 	var inc: int = st["f"].get("incantata", -1)
 	if inc != -1:
 		var t2 := immagine_carta(tex_carta(inc), 70, 108)
-		t2.position = Vector2(vs.x - 400, 52)
+		t2.position = Vector2(vs.x - 90, 120)
 		lbl_incantata.add_child(t2)
 		var l2 := etichetta("incantata", F_CORSIVO, 15, COL_G)
-		l2.position = Vector2(vs.x - 400, 160)
+		l2.position = Vector2(vs.x - 90, 230)
 		lbl_incantata.add_child(l2)
 
 func _disegna_riga(vs: Vector2) -> void:
@@ -960,14 +986,14 @@ func _disegna_riga(vs: Vector2) -> void:
 	var riga: Array = st["riga"]
 	if riga.is_empty():
 		return
-	var w := 74.0
-	var h := 115.0
+	var w := 60.0
+	var h := 93.0
 	var a: Dictionary = st["attesa"]
 	var frusta: bool = not a.is_empty() and a["tipo"] == "frusta" and a["chi"] == spettatore() and occupato <= 0.0
 	var n := riga.size()
-	var passo: float = min(w + 6, (vs.x - 760) / max(1, n))
+	var passo: float = min(w + 5, (vs.x - 700) / max(1, n))
 	var x0: float = vs.x * 0.5 - (passo * (n - 1) + w) * 0.5
-	var y0 := 150.0
+	var y0 := 112.0
 	for i in n:
 		var r: Dictionary = riga[i]
 		var c: Control
@@ -984,7 +1010,7 @@ func _disegna_riga(vs: Vector2) -> void:
 			var t := immagine_carta(tex_carta(r["id"]), w, h)
 			t.mouse_filter = Control.MOUSE_FILTER_PASS
 			t.pivot_offset = Vector2(w * 0.5, 0)
-			t.mouse_entered.connect(func(): t.scale = Vector2(2.4, 2.4); t.z_index = 10)
+			t.mouse_entered.connect(func(): t.scale = Vector2(2.8, 2.8); t.z_index = 10)
 			t.mouse_exited.connect(func(): t.scale = Vector2.ONE; t.z_index = 0)
 			c = t
 			if r.get("frusta", false) or r.get("riempita", false):
