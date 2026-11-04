@@ -739,63 +739,114 @@ func _banner(testo: String, size := 40) -> void:
 	tw.tween_interval(1.0)
 	tw.tween_property(banner, "modulate:a", 0.0, 0.4)
 
-## Le due carte dello scambio una accanto all'altra, con le frecce riga per riga (come nel regolamento).
+## Le due carte dello scambio, ciascuna sopra il proprio personaggio; da ogni carta partono le frecce
+## dei colpi (e delle parate), che sfumano verso il centro fino a sparire.
 func _mostra_scambio(e: Dictionary) -> void:
 	if not is_instance_valid(popup_scambio):
 		return
 	svuota(popup_scambio)
 	var vs := get_viewport().get_visible_rect().size
-	var w := 150.0
+	var w := 120.0
 	var h := w * 1.55
-	var gap := 90.0
-	var x0 := vs.x * 0.5 - w - gap * 0.5
-	var y0 := vs.y * 0.5 - h * 0.5 - 40
-	var fondo := Panel.new()
-	fondo.add_theme_stylebox_override("panel", stile(Color(0, 0, 0, 0.55), Color(0.6, 0.45, 0.2), 12, 1))
-	fondo.position = Vector2(x0 - 16, y0 - 34)
-	fondo.size = Vector2(w * 2 + gap + 32, h + 50)
-	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	popup_scambio.add_child(fondo)
-	var att := immagine_carta(tex_carta(e["carta_att"]), w, h)
-	att.position = Vector2(x0, y0)
-	popup_scambio.add_child(att)
-	var dif := immagine_carta(tex_carta(e["carta_dif"]), w, h)
-	dif.position = Vector2(x0 + w + gap, y0)
-	popup_scambio.add_child(dif)
-	var tit := etichetta(("Attacco riflesso dallo Specchio" if e.get("riflesso", false) else "Attacco di " + ("Gandalf" if e["attaccante"] == "G" else "Balrog")) + "  /  difesa", F_TITOLO, 15, COL_ORO)
-	tit.position = Vector2(x0, y0 - 28)
-	popup_scambio.add_child(tit)
+	var lato := {e["attaccante"]: e["carta_att"]}
+	lato[e["difensore"]] = e["carta_dif"]
+	if e["attaccante"] == e["difensore"]:
+		lato = {"G": e["carta_att"], "B": e["carta_dif"]}
+	# dove sono i personaggi sullo schermo
+	var pos := {}
+	for chi in ["G", "B"]:
+		var p3: Vector3 = scena.figure[chi].global_position + Vector3(0, 2.2 if chi == "G" else 3.4, 0)
+		var p2: Vector2 = scena.cam.unproject_position(p3) if not scena.cam.is_position_behind(p3) else Vector2(vs.x * (0.25 if chi == "G" else 0.75), vs.y * 0.4)
+		p2.x = clamp(p2.x - w * 0.5, 12.0, vs.x - w - 12.0)
+		p2.y = clamp(p2.y - h - 10.0, 180.0, vs.y - CH - 110.0 - h)
+		pos[chi] = p2
+	# se le carte si sovrappongono, si allargano
+	if abs(pos["G"].x - pos["B"].x) < w + 40:
+		var mezzo: float = (pos["G"].x + pos["B"].x) * 0.5
+		var sx: String = "G" if pos["G"].x <= pos["B"].x else "B"
+		pos[sx].x = clamp(mezzo - w - 40, 12.0, vs.x - w - 12.0)
+		pos[Motore.altro(sx)].x = clamp(mezzo + 40, 12.0, vs.x - w - 12.0)
+	var centro: float = (pos["G"].x + pos["B"].x + w) * 0.5
+	for chi in ["G", "B"]:
+		var c := immagine_carta(tex_carta(lato[chi]), w, h)
+		c.position = pos[chi]
+		popup_scambio.add_child(c)
+		var cornice := Panel.new()
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0, 0, 0, 0)
+		sb.border_color = COL_G if chi == "G" else COL_B
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(10)
+		sb.shadow_color = Color(0, 0, 0, 0.6)
+		sb.shadow_size = 10
+		cornice.add_theme_stylebox_override("panel", sb)
+		cornice.size = Vector2(w, h)
+		cornice.position = pos[chi]
+		cornice.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		popup_scambio.add_child(cornice)
+		var ruolo := "attacco" if chi == e["attaccante"] else "difesa"
+		if e.get("riflesso", false) and chi == "G":
+			ruolo = "attacco riflesso"
+		var l := etichetta(ruolo, F_TITOLO, 14, COL_ORO)
+		l.position = pos[chi] + Vector2(0, -22)
+		popup_scambio.add_child(l)
 	var righe := [0.2, 0.42, 0.64, 0.86]
 	for r in 4:
-		var y: float = y0 + h * righe[r]
-		var xa := x0 + w - 4
-		var xb := x0 + w + gap + 4
+		var da := []
 		if r in e["subiti"]:
-			_freccia(Vector2(xa, y), Vector2(xb, y), COL_G if e["attaccante"] == "G" else COL_B)
+			da.append([e["attaccante"], COL_G if e["attaccante"] == "G" else COL_B])
 		elif r in e["inflitti"]:
-			_freccia(Vector2(xb, y), Vector2(xa, y), COL_G if e["difensore"] == "G" else COL_B)
+			da.append([e["difensore"], COL_G if e["difensore"] == "G" else COL_B])
 		elif r in e["parati"]:
-			_freccia(Vector2(xa + 10, y), Vector2(xb - 10, y), COL_ORO, true)
+			da.append(["G", COL_ORO])
+			da.append(["B", COL_ORO])
+		for x in da:
+			var chi: String = x[0]
+			var y: float = pos[chi].y + h * righe[r]
+			# parte dal bordo della carta rivolto verso il centro
+			var x0: float = pos[chi].x + w if pos[chi].x + w * 0.5 < centro else pos[chi].x
+			var lungo: float = abs(centro - x0) * (0.55 if x[1] == COL_ORO else 0.95)
+			var x1: float = x0 + sign(centro - x0) * max(lungo, 40.0)
+			_freccia_sfumata(Vector2(x0, y), Vector2(x1, y), x[1])
 	popup_scambio.modulate.a = 0.0
 	var tw := create_tween()
 	tw.tween_property(popup_scambio, "modulate:a", 1.0, 0.15)
-	tw.tween_interval(1.25)
+	tw.tween_interval(1.35)
 	tw.tween_property(popup_scambio, "modulate:a", 0.0, 0.35)
 
-func _freccia(a: Vector2, b: Vector2, col: Color, doppia := false) -> void:
+## Freccia che parte piena dalla carta e svanisce verso il centro (niente punta: si dissolve).
+func _freccia_sfumata(a: Vector2, b: Vector2, col: Color) -> void:
 	var l := Line2D.new()
 	l.points = PackedVector2Array([a, b])
-	l.width = 6
-	l.default_color = col
+	l.width = 9
+	var g := Gradient.new()
+	g.set_color(0, Color(col.r, col.g, col.b, 1.0))
+	g.set_color(1, Color(col.r, col.g, col.b, 0.0))
+	g.add_point(0.35, Color(col.r, col.g, col.b, 0.85))
+	l.gradient = g
+	var c := Curve.new()
+	c.add_point(Vector2(0, 1.0))
+	c.add_point(Vector2(1, 0.25))
+	l.width_curve = c
+	l.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	popup_scambio.add_child(l)
-	var punte := [b] if not doppia else [a, b]
-	for p in punte:
-		var dir: Vector2 = (p - (a if p == b else b)).normalized()
-		var n := Vector2(-dir.y, dir.x)
-		var pg := Polygon2D.new()
-		pg.polygon = PackedVector2Array([p + dir * 10, p - dir * 10 + n * 11, p - dir * 10 - n * 11])
-		pg.color = col
-		popup_scambio.add_child(pg)
+	# un alone morbido sotto la freccia
+	var alone := l.duplicate() as Line2D
+	alone.width = 20
+	var g2 := Gradient.new()
+	g2.set_color(0, Color(col.r, col.g, col.b, 0.35))
+	g2.set_color(1, Color(col.r, col.g, col.b, 0.0))
+	alone.gradient = g2
+	popup_scambio.add_child(alone)
+	popup_scambio.move_child(alone, popup_scambio.get_child_count() - 2)
+	# la freccia scorre verso il centro
+	l.points = PackedVector2Array([a, a])
+	alone.points = PackedVector2Array([a, a])
+	var tw := create_tween()
+	tw.tween_method(func(t: float):
+		var p := a.lerp(b, t)
+		l.points = PackedVector2Array([a, p])
+		alone.points = PackedVector2Array([a, p]), 0.0, 1.0, 0.35).set_ease(Tween.EASE_OUT)
 
 # ============================================================ disegno del tavolo
 
