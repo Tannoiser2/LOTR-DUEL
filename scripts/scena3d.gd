@@ -25,6 +25,7 @@ var gradino := {"G": 0, "B": 0}
 var scossa := 0.0
 var t := 0.0
 var auto_giro := true
+var suoni: Suoni
 var spostamento_px := 0.0   # quanti pixel a destra sono coperti dalla barra: la scena si centra nel resto
 var mira_y := 1.4   # altezza a cui guarda la telecamera (più alta: il ponte scende sullo schermo)
 var mat_lava: StandardMaterial3D
@@ -32,6 +33,8 @@ var mat_lava2: StandardMaterial3D
 var persistenti := []   # effetti che restano finché non si gioca la carta successiva
 
 func _ready() -> void:
+	suoni = Suoni.new()
+	add_child(suoni)
 	_ambiente()
 	_abisso()
 	_scogli()
@@ -507,6 +510,8 @@ func sali(chi: String, da: int, a: int) -> void:
 		tw.tween_property(figure[chi], "position", p, 0.2)
 		prima = p
 	tw.tween_callback(func(): _lampo(chi, 2.5))
+	for k in a - da:
+		suoni.suona("passo", -4.0 if chi == "G" else 0.0, k * 0.4 + 0.2, 1.0 if chi == "G" else 0.6)
 
 # ------------------------------------------------------------ effetti
 
@@ -595,8 +600,12 @@ func carta_giocata(chi: String) -> void:
 	_lampo(chi, 3.0)
 	anima(chi, "attacco")
 	togli_persistenti()
+	suoni.suona("carta", -8.0)
 	if chi == "B":
+		suoni.suona("balrog_ruggito", -2.0, 0.1)
 		get_tree().create_timer(0.45).timeout.connect(func(): _sferzata(false))
+	else:
+		suoni.suona("gandalf_sforzo", -4.0, 0.05)
 	if chi == "B":
 		var b := _fuoco(Vector3(0, 1.6, 0), 60, 0.9)
 		b.one_shot = true
@@ -625,10 +634,14 @@ func _colpo(da: String, a: String, riga: int, ritardo: float) -> void:
 	var p1 := _testa(a) + Vector3(0, -0.4 - riga * 0.2, 0)
 	if da == "G":
 		_fulmine(p0, p1, COL_G)
+		suoni.suona("fulmine", -5.0)
 	else:
 		_palla_fuoco(p0, p1)
+		suoni.suona("fuoco", -4.0)
 	await get_tree().create_timer(0.6).timeout
 	_lampo(a, 5.0)
+	suoni.suona("impatto", -6.0)
+	suoni.suona("balrog_dolore" if a == "B" else "gandalf_dolore", -3.0, 0.08)
 	anima(a, "colpito")
 	scossa = min(1.0, scossa + 0.35)
 	var ferita := _fuoco(figure[a].to_local(p1), 30, 0.3) if a == "B" else _scintille_su(p1, COL_G)
@@ -706,6 +719,7 @@ func _palla_fuoco(p0: Vector3, p1: Vector3) -> void:
 
 func _scintille(riga: int, ritardo: float) -> void:
 	await get_tree().create_timer(ritardo).timeout
+	suoni.suona("parata", -8.0)
 	var c := (_testa("G") + _testa("B")) * 0.5 + Vector3(0, 0.3 - riga * 0.25, 0)
 	_scintille_su(c, Color(1.0, 0.85, 0.55))
 
@@ -747,6 +761,15 @@ func _scintille_su(p: Vector3, col: Color) -> CPUParticles3D:
 
 ## Effetto visivo di una carta speciale.
 func speciale(spec: String) -> void:
+	if spec in ["specchio", "equilibrio", "magia", "astuzia", "incantesimo", "ira"]:
+		suoni.suona("magia", -3.0)
+		if spec == "ira":
+			suoni.suona("fulmine", -2.0, 0.1)
+			suoni.suona("gandalf_sforzo", 0.0)
+	else:
+		suoni.suona("balrog_ruggito_forte", 0.0)
+		if spec != "frusta":
+			suoni.suona("fuoco", -2.0, 0.2)
 	match spec:
 		"specchio":
 			_scudo()
@@ -1063,6 +1086,8 @@ func _sferzata(forte: bool) -> void:
 			f2.gravity = Vector3(0, 2.5, 0)
 			f2.position = curva.call(u2)
 			_temporaneo(f2, 0.1), 0.0, 1.0, durata).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	suoni.suona("soffio_1", -6.0 if forte else -10.0)
+	suoni.suona("frusta", 0.0 if forte else -7.0, durata - 0.32)
 	tw.tween_callback(func():
 		# lo schiocco
 		scia.emitting = false
@@ -1106,3 +1131,6 @@ func caduta(perdente: String) -> void:
 	scossa = 1.0
 	var vinc := Motore.altro(perdente)
 	_lampo(vinc, 10.0)
+	suoni.suona("balrog_caduta" if perdente == "B" else "gandalf_caduta", 0.0, 0.5)
+	if vinc == "B":
+		suoni.suona("balrog_vittoria", -2.0, 2.4)

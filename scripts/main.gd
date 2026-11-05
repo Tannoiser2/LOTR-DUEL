@@ -196,7 +196,7 @@ func mostra_menu() -> void:
 	else:
 		v.add_child(bottone("Recupera la partita salvata online", _carica_remoto, Color(0.14, 0.2, 0.12)))
 	v.add_child(bottone("Regole del gioco", mostra_regole, Color(0.16, 0.14, 0.12)))
-	var nota := etichetta("Peter Neugebauer, Kosmos 2002 – illustrazioni di John Howe. Versione digitale per uso personale.", F_CORSIVO, 15, Color(0.75, 0.7, 0.65))
+	var nota := etichetta("Peter Neugebauer, Kosmos 2002 – illustrazioni di John Howe. Versione digitale per uso personale. Suoni: Oculus Audio Pack (Meta, CC BY 4.0).", F_CORSIVO, 15, Color(0.75, 0.7, 0.65))
 	nota.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nota.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(nota)
@@ -504,6 +504,7 @@ func _apri_tavolo() -> void:
 	scena.auto_giro = false
 	scena.visuale(0)
 	scena.spostamento_px = BARRA * 0.5
+	scena.suoni.avvia_sottofondo()
 	scena.metti_figure(st["figura"]["G"], st["figura"]["B"])
 	tavolo = Control.new()
 	tavolo.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -530,6 +531,9 @@ func _apri_tavolo() -> void:
 		b2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		griglia.add_child(b2)
 	vb.add_child(griglia)
+	var b_audio := bottone("Audio: sì" if scena.suoni.attivo else "Audio: no", func(): pass, Color(0.15, 0.12, 0.1), 15)
+	b_audio.pressed.connect(func(): b_audio.text = "Audio: sì" if scena.suoni.cambia() else "Audio: no")
+	vb.add_child(b_audio)
 	lbl_ponte = etichetta("", F_TITOLO, 1, COL_TESTO)
 	lbl_ponte.visible = false
 	vb.add_child(lbl_ponte)
@@ -1413,6 +1417,8 @@ func _mostra_esito(e: Dictionary) -> void:
 
 func _fine_partita() -> void:
 	in_partita = true
+	var ho_vinto: bool = modo == "locale" or st["vincitore"] == io
+	scena.suoni.suona("musica_vittoria" if ho_vinto else "musica_sconfitta", -4.0, 2.0)
 	var v := _finestra("")
 	var vinc: String = st["vincitore"]
 	var t := etichetta(("Gandalf" if vinc == "G" else "Il Balrog") + " vince!", F_DECO, 54, COL_G if vinc == "G" else COL_B)

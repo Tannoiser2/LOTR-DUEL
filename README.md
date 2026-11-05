@@ -21,6 +21,14 @@ Si gioca qui: https://tannoiser2.github.io/LOTR-DUEL/ (e, con i segreti Cloudfla
 - **Due giocatori sullo stesso dispositivo** con schermata di passaggio, e **partite online** con stanze di 4 lettere
   su Firebase; **salvataggio** automatico sul dispositivo e su Firebase.
 
+## Suoni
+
+Ruggiti e lamenti del Balrog, voci di Gandalf, incantesimi e colpi vengono dall'**Oculus Audio Pack**
+(© 2015 Oculus VR / Meta, licenza [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), elaborati con
+`tools/suoni.py` (le voci del Balrog sono voci di giganti e orchi abbassate di tono, con eco di caverna).
+Fulmine, schiocco della frusta, fuoco e brontolio della lava sono sintetizzati dallo stesso script.
+Il pulsante «Audio» nella barra a destra spegne o riaccende tutto.
+
 ## File
 
 - `scripts/motore.gd` – le regole: tutto lo stato in un dizionario, decisioni numerate (stessa sequenza = stessa partita).
