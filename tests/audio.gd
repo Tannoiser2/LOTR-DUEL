@@ -6,7 +6,7 @@ func _initialize():
 	await process_frame
 	var nomi := ["carta", "balrog_ruggito", "balrog_ruggito_forte", "balrog_dolore", "balrog_caduta", "balrog_vittoria",
 		"gandalf_sforzo", "gandalf_dolore", "gandalf_caduta", "fulmine", "fuoco", "impatto", "parata", "magia",
-		"soffio_1", "frusta", "passo", "musica_vittoria", "musica_sconfitta", "lava", "drone"]
+		"soffio_1", "frusta", "passo", "musica_vittoria", "musica_sconfitta", "gandalf_frase", "gandalf_non_passerai", "lava", "drone"]
 	var mancano := []
 	for n in nomi:
 		if s._stream(n) == null and s._stream(n + "_1") == null:

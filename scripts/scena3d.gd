@@ -510,6 +510,8 @@ func sali(chi: String, da: int, a: int) -> void:
 		tw.tween_property(figure[chi], "position", p, 0.2)
 		prima = p
 	tw.tween_callback(func(): _lampo(chi, 2.5))
+	if chi == "G":
+		frase("G", (a - da) * 0.4 + 0.4)
 	for k in a - da:
 		suoni.suona("passo", -4.0 if chi == "G" else 0.0, k * 0.4 + 0.2, 1.0 if chi == "G" else 0.6)
 
@@ -763,6 +765,8 @@ func _scintille_su(p: Vector3, col: Color) -> CPUParticles3D:
 func speciale(spec: String) -> void:
 	if spec in ["specchio", "equilibrio", "magia", "astuzia", "incantesimo", "ira"]:
 		suoni.suona("magia", -3.0)
+		if randf() < 0.4:
+			frase("G", 0.6)
 		if spec == "ira":
 			suoni.suona("fulmine", -2.0, 0.1)
 			suoni.suona("gandalf_sforzo", 0.0)
@@ -796,6 +800,15 @@ func speciale(spec: String) -> void:
 			_muro_fuoco()
 		"frusta":
 			_sferzata(true)
+
+var ultima_frase := -100.0
+
+## Una frase di Gandalf (le battute non si accavallano e non si ripetono troppo spesso).
+func frase(chi: String, ritardo := 0.0, nome := "gandalf_frase") -> void:
+	if chi != "G" or t - ultima_frase < 12.0:
+		return
+	ultima_frase = t
+	suoni.suona(nome, 1.0, ritardo)
 
 func togli_persistenti() -> void:
 	for n in persistenti:
@@ -1131,6 +1144,10 @@ func caduta(perdente: String) -> void:
 	scossa = 1.0
 	var vinc := Motore.altro(perdente)
 	_lampo(vinc, 10.0)
-	suoni.suona("balrog_caduta" if perdente == "B" else "gandalf_caduta", 0.0, 0.5)
+	if perdente == "B":
+		suoni.suona("gandalf_non_passerai", 2.0, 0.0)
+		suoni.suona("balrog_caduta", -2.0, 1.6)
+	else:
+		suoni.suona("gandalf_caduta", 0.0, 0.5)
 	if vinc == "B":
 		suoni.suona("balrog_vittoria", -2.0, 2.4)

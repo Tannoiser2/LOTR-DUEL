@@ -505,6 +505,8 @@ func _apri_tavolo() -> void:
 	scena.visuale(0)
 	scena.spostamento_px = BARRA * 0.5
 	scena.suoni.avvia_sottofondo()
+	if decisioni.is_empty():
+		scena.frase("G", 1.2, "gandalf_non_passerai")
 	scena.metti_figure(st["figura"]["G"], st["figura"]["B"])
 	tavolo = Control.new()
 	tavolo.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -781,6 +783,8 @@ func _anima(ev: Array) -> void:
 				t += 2.0
 			"duello":
 				_dopo(t, func(): _banner("Duello finale" if ee["n"] == 4 else "Duello %d" % ee["n"]))
+				if ee["n"] == 4:
+					_dopo(t + 0.3, func(): scena.frase("G", 0.0, "gandalf_non_passerai"))
 				t += 1.0
 	occupato = max(occupato, t + 0.2)
 
