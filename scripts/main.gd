@@ -6,6 +6,7 @@ extends Node
 const SALVA_LOCALE := "user://partita_lotrduel.json"
 const CW := 108.0   # larghezza carta in mano
 const CH := 167.0
+const BARRA := 250.0   # larghezza della barra di stato a destra
 const COL_ORO := Color(0.93, 0.8, 0.5)
 const COL_G := Color(0.78, 0.86, 1.0)
 const COL_B := Color(1.0, 0.5, 0.2)
@@ -56,6 +57,11 @@ var banner: Label
 var pannello_riserve: Label
 var lbl_incantata: Control
 var finestra_diario: Control
+# fila delle carte giocate: carta con lo spazio davanti (scambio in corso) e carta in volo
+var gap_idx := -1
+var vola_idx := -1
+var vola_da := Vector2.ZERO
+var riga_lay := {}
 var lbl_ultimo: Label
 
 func _ready() -> void:
@@ -160,6 +166,7 @@ func immagine_carta(tex: Texture2D, w: float, h: float) -> TextureRect:
 func mostra_menu() -> void:
 	in_partita = false
 	svuota(radice)
+	scena.spostamento_px = 0.0
 	scena.auto_giro = true
 	scena.metti_figure(0, 0)
 	var centro := CenterContainer.new()
@@ -496,59 +503,62 @@ func _apri_tavolo() -> void:
 	passaggio = ""
 	scena.auto_giro = false
 	scena.visuale(0)
+	scena.spostamento_px = BARRA * 0.5
 	scena.metti_figure(st["figura"]["G"], st["figura"]["B"])
 	tavolo = Control.new()
 	tavolo.set_anchors_preset(Control.PRESET_FULL_RECT)
 	tavolo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	radice.add_child(tavolo)
-	# in alto: titolo e ponte
-	var alto := HBoxContainer.new()
-	alto.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	alto.offset_left = 12
-	alto.offset_right = -12
-	alto.offset_top = 6
-	alto.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tavolo.add_child(alto)
-	lbl_titolo = etichetta("", F_TITOLO, 26, COL_ORO)
-	alto.add_child(lbl_titolo)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	alto.add_child(sp)
-	lbl_ponte = etichetta("", F_TITOLO, 19, COL_TESTO)
-	alto.add_child(lbl_ponte)
-	for b in [bottone("Visuale", _cambia_visuale, Color(0.15, 0.12, 0.1), 15), bottone("Diario", _apri_diario, Color(0.15, 0.12, 0.1), 15), bottone("Regole", mostra_regole, Color(0.15, 0.12, 0.1), 15), bottone("Menu", _chiedi_menu, Color(0.15, 0.12, 0.1), 15)]:
-		alto.add_child(b)
-	# carte dell'avversario (in alto) e riga delle carte giocate
+	# barra di stato a destra: titolo, pulsanti, avversario, carte per il finale, energia in colonna
+	var barra := PanelContainer.new()
+	barra.add_theme_stylebox_override("panel", stile(Color(0.05, 0.03, 0.03, 0.82), Color(0.55, 0.42, 0.2), 0, 1))
+	barra.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	barra.offset_left = -BARRA
+	barra.offset_right = 0
+	tavolo.add_child(barra)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	barra.add_child(vb)
+	lbl_titolo = etichetta("", F_TITOLO, 24, COL_ORO)
+	lbl_titolo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(lbl_titolo)
+	var griglia := GridContainer.new()
+	griglia.columns = 2
+	griglia.add_theme_constant_override("h_separation", 6)
+	griglia.add_theme_constant_override("v_separation", 6)
+	for b2 in [bottone("Visuale", _cambia_visuale, Color(0.15, 0.12, 0.1), 15), bottone("Diario", _apri_diario, Color(0.15, 0.12, 0.1), 15), bottone("Regole", mostra_regole, Color(0.15, 0.12, 0.1), 15), bottone("Menu", _chiedi_menu, Color(0.15, 0.12, 0.1), 15)]:
+		b2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		griglia.add_child(b2)
+	vb.add_child(griglia)
+	lbl_ponte = etichetta("", F_TITOLO, 1, COL_TESTO)
+	lbl_ponte.visible = false
+	vb.add_child(lbl_ponte)
 	box_avv = Control.new()
-	box_avv.position = Vector2(14, 46)
 	box_avv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tavolo.add_child(box_avv)
+	vb.add_child(box_avv)
+	pannello_riserve = etichetta("", F_TESTO, 16, Color(0.9, 0.85, 0.78))
+	pannello_riserve.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pannello_riserve.custom_minimum_size = Vector2(BARRA - 30, 0)
+	vb.add_child(pannello_riserve)
+	traccia = Control.new()
+	traccia.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	traccia.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(traccia)
 	box_riga = Control.new()
 	box_riga.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(box_riga)
-	# tracciato dell'energia: una striscia sottile in alto al centro
-	traccia = Control.new()
-	traccia.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tavolo.add_child(traccia)
 	# il diario si apre in una finestra a parte (pulsante «Diario»)
 	diario = RichTextLabel.new()
 	diario.bbcode_enabled = true
 	diario.scroll_following = true
 	diario.add_theme_font_size_override("normal_font_size", 17)
 	diario.add_theme_color_override("default_color", Color(0.92, 0.88, 0.82))
-	pannello_riserve = etichetta("", F_TESTO, 16, Color(0.9, 0.85, 0.78))
-	pannello_riserve.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	pannello_riserve.position = Vector2(-330, 50)
-	pannello_riserve.size = Vector2(318, 110)
-	pannello_riserve.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	pannello_riserve.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tavolo.add_child(pannello_riserve)
 	# messaggio e mano
 	lbl_msg = etichetta("", F_TITOLO, 21, Color(1, 0.93, 0.78))
 	lbl_msg.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	lbl_msg.offset_top = -CH - 58
 	lbl_msg.offset_bottom = -CH - 24
+	lbl_msg.offset_right = -BARRA
 	lbl_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tavolo.add_child(lbl_msg)
 	# l'ultima riga del diario, piccola, sopra il messaggio
@@ -556,6 +566,7 @@ func _apri_tavolo() -> void:
 	lbl_ultimo.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	lbl_ultimo.offset_top = -CH - 84
 	lbl_ultimo.offset_bottom = -CH - 58
+	lbl_ultimo.offset_right = -BARRA
 	lbl_ultimo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tavolo.add_child(lbl_ultimo)
 	box_mano = Control.new()
@@ -569,8 +580,8 @@ func _apri_tavolo() -> void:
 	banner = etichetta("", F_DECO, 40, Color(1, 0.9, 0.7))
 	banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	banner.offset_top = 210
-	banner.offset_left = -500
-	banner.offset_right = 500
+	banner.offset_left = -500 - BARRA * 0.5
+	banner.offset_right = 500 - BARRA * 0.5
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.modulate.a = 0
 	tavolo.add_child(banner)
@@ -683,11 +694,47 @@ func _applica(d: Dictionary, locale_ok := true) -> void:
 		return
 	decisioni.append(d)
 	svuota(dialogo)
+	_prepara_riga(ev, d)
 	_anima(ev)
 	_aggiorna()
 	_salva()
 
 # ============================================================ animazioni
+
+## Dove deve volare la carta appena giocata e dove aprire lo spazio per lo scambio.
+func _prepara_riga(ev: Array, d: Dictionary) -> void:
+	var riga: Array = st["riga"]
+	var trova := func(id: int) -> int:
+		for i in range(riga.size() - 1, -1, -1):
+			if riga[i]["id"] == id and not riga[i].get("vuota", false):
+				return i
+		return -1
+	for e in ev:
+		if e["t"] == "carta":
+			var i: int = trova.call(e["id"])
+			if i >= 0:
+				vola_idx = i
+				var vs := get_viewport().get_visible_rect().size
+				if e["chi"] == spettatore() and not (modo == "ia" and e["chi"] != io):
+					vola_da = Vector2(vs.x * 0.5, vs.y - CH)
+				else:
+					var p3: Vector3 = scena.figure[e["chi"]].global_position + Vector3(0, 1.5, 0)
+					vola_da = scena.cam.unproject_position(p3) if not scena.cam.is_position_behind(p3) else Vector2(vs.x * 0.5, vs.y * 0.5)
+		elif e["t"] == "scambio":
+			gap_idx = trova.call(e["carta_dif"])
+			if vola_idx < 0:
+				vola_idx = gap_idx
+
+func _chiudi_spazio() -> void:
+	if gap_idx < 0:
+		return
+	var da := gap_idx
+	gap_idx = -1
+	var g: float = riga_lay.get("gap", 0.0)
+	for c in box_riga.get_children():
+		if c.get_meta("i", -1) >= da:
+			var tw := create_tween()
+			tw.tween_property(c, "position:x", c.position.x - g, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 
 func _anima(ev: Array) -> void:
 	var t := 0.0
@@ -698,8 +745,10 @@ func _anima(ev: Array) -> void:
 				_dopo(t, func(): scena.carta_giocata(ee["chi"]))
 				t += 0.6 if ee["chi"] == "B" else 0.35
 			"scambio":
+				t += 0.5   # il tempo del volo della carta
 				_dopo(t, func(): _mostra_scambio(ee); scena.scambio(ee["attaccante"], ee["difensore"], ee["subiti"], ee["inflitti"], ee["parati"]))
-				t += 2.6
+				t += 2.8
+				_dopo(t - 0.3, _chiudi_spazio)
 			"speciale":
 				_dopo(t, func(): _banner(Dati.carta(ee["id"])["nome"]); scena.speciale(ee["spec"]))
 				t += 2.0
@@ -739,97 +788,42 @@ func _banner(testo: String, size := 40) -> void:
 	tw.tween_interval(1.0)
 	tw.tween_property(banner, "modulate:a", 0.0, 0.4)
 
-## Le due carte dello scambio, ciascuna sopra il proprio personaggio; da ogni carta partono le frecce
-## dei colpi (e delle parate), che sfumano verso il centro fino a sparire.
+## Lo scambio si vede nella fila: tra la carta d'attacco (a sinistra) e quella appena giocata (a destra)
+## si apre uno spazio, e lì passano i colpi (da una carta all'altra) e le parate (che si fermano a metà).
 func _mostra_scambio(e: Dictionary) -> void:
-	if not is_instance_valid(popup_scambio):
+	if not is_instance_valid(popup_scambio) or gap_idx < 1 or riga_lay.is_empty():
 		return
 	svuota(popup_scambio)
-	var vs := get_viewport().get_visible_rect().size
-	var w: float = clamp(vs.x * 0.115, 120.0, 190.0)
-	var h := w * 1.55
-	var lato := {e["attaccante"]: e["carta_att"]}
-	lato[e["difensore"]] = e["carta_dif"]
-	if e["attaccante"] == e["difensore"]:
-		lato = {"G": e["carta_att"], "B": e["carta_dif"]}
-	# le carte stanno sopra la testa dei personaggi, senza coprirli
-	var pos := {}
-	var alto_min := 232.0
-	for chi in ["G", "B"]:
-		var p3: Vector3 = scena.figure[chi].global_position + Vector3(0, 2.0 if chi == "G" else 3.6, 0)
-		var p2: Vector2 = scena.cam.unproject_position(p3) if not scena.cam.is_position_behind(p3) else Vector2(vs.x * (0.25 if chi == "G" else 0.75), vs.y * 0.6)
-		pos[chi] = p2
-	# l'altezza disponibile sopra la testa più alta decide la misura delle carte
-	var testa: float = min(pos["G"].y, pos["B"].y) - 12.0
-	h = clamp(testa - alto_min, 150.0, w * 1.55)
-	w = h / 1.55
-	for chi in ["G", "B"]:
-		var x: float = pos[chi].x - w * 0.5 + (-w * 0.25 if chi == "G" else w * 0.25)
-		pos[chi] = Vector2(clamp(x, 12.0, vs.x - w - 12.0), max(alto_min, pos[chi].y - 12.0 - h))
-	if pos["B"].x - pos["G"].x < w + 60:
-		pos["G"].x = 12.0
-		pos["B"].x = vs.x - w - 12.0
-	# stessa altezza per entrambe: le righe dei simboli si allineano e i colpi vanno dritti
-	var y_c: float = min(pos["G"].y, pos["B"].y)
-	pos["G"].y = y_c
-	pos["B"].y = y_c
-	var centro: float = (pos["G"].x + pos["B"].x + w) * 0.5
-	for chi in ["G", "B"]:
-		var c := immagine_carta(tex_carta(lato[chi]), w, h)
-		c.position = pos[chi]
-		popup_scambio.add_child(c)
-		var cornice := Panel.new()
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0, 0)
-		sb.border_color = COL_G if chi == "G" else COL_B
-		sb.set_border_width_all(2)
-		sb.set_corner_radius_all(10)
-		sb.shadow_color = Color(0, 0, 0, 0.6)
-		sb.shadow_size = 10
-		cornice.add_theme_stylebox_override("panel", sb)
-		cornice.size = Vector2(w, h)
-		cornice.position = pos[chi]
-		cornice.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		popup_scambio.add_child(cornice)
-		var ruolo := "attacco" if chi == e["attaccante"] else "difesa"
-		if e.get("riflesso", false) and chi == "G":
-			ruolo = "attacco riflesso"
-		var l := etichetta(ruolo, F_TITOLO, 14, COL_ORO)
-		l.position = pos[chi] + Vector2(0, -22)
-		popup_scambio.add_child(l)
+	popup_scambio.modulate.a = 1.0
+	var w: float = riga_lay["w"]
+	var h: float = riga_lay["h"]
+	var sx: float = _slot(gap_idx - 1).x + w     # bordo destro della carta d'attacco
+	var dx: float = _slot(gap_idx).x             # bordo sinistro della carta che risponde
+	var y0: float = riga_lay["y0"]
+	var centro := (sx + dx) * 0.5
 	var righe := [0.2, 0.42, 0.64, 0.86]
-	# stesso ordine e stessi tempi dei colpi nella scena 3D
-	var elenco := []
+	var col_att := COL_G if e["attaccante"] == "G" else COL_B
+	var col_dif := COL_G if e["difensore"] == "G" else COL_B
 	var rit := 0.0
 	for r in e["subiti"]:
-		elenco.append([r, e["attaccante"], COL_G if e["attaccante"] == "G" else COL_B, rit])
+		_freccia_sfumata(Vector2(sx, y0 + h * righe[r]), Vector2(dx, y0 + h * righe[r]), col_att, rit, true)
 		rit += 0.38
 	for r in e["inflitti"]:
-		elenco.append([r, e["difensore"], COL_G if e["difensore"] == "G" else COL_B, rit])
+		_freccia_sfumata(Vector2(dx, y0 + h * righe[r]), Vector2(sx, y0 + h * righe[r]), col_dif, rit, true)
 		rit += 0.38
 	for r in e["parati"]:
-		elenco.append([r, "G", COL_ORO, rit])
-		elenco.append([r, "B", COL_ORO, rit])
+		var y: float = y0 + h * righe[r]
+		_freccia_sfumata(Vector2(sx, y), Vector2(lerp(sx, centro, 0.8), y), COL_ORO, rit, false)
+		_freccia_sfumata(Vector2(dx, y), Vector2(lerp(dx, centro, 0.8), y), COL_ORO, rit, false)
 		rit += 0.3
-	for x in elenco:
-		var chi: String = x[1]
-		var y: float = pos[chi].y + h * righe[x[0]]
-		# parte dal bordo della carta rivolto verso il centro
-		var x0: float = pos[chi].x + w if pos[chi].x + w * 0.5 < centro else pos[chi].x
-		if x[2] == COL_ORO:
-			# parata: si ferma prima del centro e svanisce
-			var x1: float = x0 + sign(centro - x0) * max(abs(centro - x0) * 0.6, 40.0)
-			_freccia_sfumata(Vector2(x0, y), Vector2(x1, y), x[2], x[3], false)
-		else:
-			# colpo: attraversa tutto, sfuma al centro e torna piena sulla carta colpita
-			var altro: String = Motore.altro(chi)
-			var xb: float = pos[altro].x if pos[altro].x > x0 else pos[altro].x + w
-			_freccia_sfumata(Vector2(x0, y), Vector2(xb, y), x[2], x[3], true)
-	popup_scambio.modulate.a = 0.0
+	if e.get("riflesso", false):
+		var l := etichetta("riflesso", F_CORSIVO, 15, COL_G)
+		l.position = Vector2(centro - 28, y0 + h + 6)
+		popup_scambio.add_child(l)
 	var tw := create_tween()
-	tw.tween_property(popup_scambio, "modulate:a", 1.0, 0.15)
-	tw.tween_interval(3.4)
-	tw.tween_property(popup_scambio, "modulate:a", 0.0, 0.6)
+	tw.tween_interval(2.3)
+	tw.tween_property(popup_scambio, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(func(): svuota(popup_scambio))
 
 ## Freccia dalla carta: la parata svanisce prima del centro; il colpo passa, sfuma a metà e torna piena
 ## sulla carta colpita, dove finisce con una punta.
@@ -932,25 +926,22 @@ func _aggiorna() -> void:
 	lbl_ultimo.text = st["diario"][-1] if not st["diario"].is_empty() else ""
 	lbl_msg.text = Motore.descrivi_attesa(st)
 
-## Il tracciato dell'energia in una striscia: a destra più energia, a sinistra l'area negativa.
-## Gandalf (bianco) nella metà alta delle caselle, il Balrog (rosso) in quella bassa.
-func _disegna_traccia(vs: Vector2) -> void:
+## Il tracciato dell'energia in colonna: in alto più energia, in basso l'area negativa.
+## Gandalf (bianco) nella metà sinistra delle caselle, il Balrog (rosso) in quella destra.
+func _disegna_traccia(_vs: Vector2) -> void:
 	svuota(traccia)
-	var cw := 22.0
-	var chh := 26.0
-	var largo := 20 * cw
-	traccia.position = Vector2(vs.x * 0.5 - largo * 0.5 + 20, 12)
-	var fondo := Panel.new()
-	fondo.add_theme_stylebox_override("panel", stile(Color(0.04, 0.03, 0.06, 0.72), Color(0.45, 0.4, 0.6), 8, 1))
-	fondo.size = Vector2(largo + 96, chh + 12)
-	fondo.position = Vector2(-80, -6)
-	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	traccia.add_child(fondo)
-	var lab := etichetta("Energia", F_TITOLO, 14, COL_ORO)
-	lab.position = Vector2(-72, 4)
+	var vs := get_viewport().get_visible_rect().size
+	var cima: float = traccia.global_position.y if traccia.global_position.y > 50.0 else 250.0
+	var chh: float = clamp((vs.y - cima - 90.0) / 20.0, 12.0, 30.0)
+	if traccia.global_position.y < 50.0:
+		_disegna_traccia.call_deferred(vs)
+	var cw := 70.0
+	var x0 := (BARRA - 30 - cw) * 0.5 - 14
+	var lab := etichetta("Energia", F_TITOLO, 16, COL_ORO)
+	lab.position = Vector2(x0 - 6, 0)
 	traccia.add_child(lab)
 	for i in 20:
-		var val := i - 4
+		var val := 15 - i
 		var r := Panel.new()
 		var col := Color(0.16, 0.18, 0.42) if val > 0 else Color(0.34, 0.11, 0.13)
 		var bordo := Color(0.45, 0.5, 0.75) if val > 0 else Color(0.65, 0.28, 0.28)
@@ -962,26 +953,31 @@ func _disegna_traccia(vs: Vector2) -> void:
 			bordo = Color(1, 1, 1)
 			w = 2
 		r.add_theme_stylebox_override("panel", stile(col, bordo, 3, w))
-		r.position = Vector2(i * cw, 0)
-		r.size = Vector2(cw - 2, chh)
+		r.position = Vector2(x0, 26 + i * chh)
+		r.size = Vector2(cw, chh - 2)
 		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		traccia.add_child(r)
+		if val > 0:
+			var nn := etichetta(str(val), F_TESTO, 13, Color(0.8, 0.8, 0.9, 0.7))
+			nn.position = Vector2(x0 + cw + 6, 26 + i * chh + chh * 0.5 - 11)
+			traccia.add_child(nn)
+	var d: float = min(chh - 6, 18.0)
 	for chi in ["G", "B"]:
 		var e: int = st["energia"][chi]
 		var g := Panel.new()
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = Color(0.9, 0.92, 1.0) if chi == "G" else Color(0.9, 0.18, 0.08)
-		sb.set_corner_radius_all(7)
+		sb.set_corner_radius_all(int(d))
 		sb.border_color = Color(0.08, 0.08, 0.08)
 		sb.set_border_width_all(2)
 		g.add_theme_stylebox_override("panel", sb)
-		g.size = Vector2(12, 12)
-		g.position = Vector2((e + 4) * cw + 4, 1 if chi == "G" else 13)
+		g.size = Vector2(d, d)
+		g.position = Vector2(x0 + (cw * 0.27 if chi == "G" else cw * 0.73) - d * 0.5, 26 + (15 - e) * chh + (chh - 2 - d) * 0.5)
 		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		traccia.add_child(g)
 	var vuote: int = max(0, abs(st["energia"]["G"] - st["energia"]["B"]) - 1)
-	var info := etichetta("Gandalf %d, Balrog %d, caselle vuote %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 15, Color(0.9, 0.86, 0.78))
-	info.position = Vector2(-76, chh + 5)
+	var info := etichetta("Gandalf %d, Balrog %d\ncaselle vuote: %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 15, Color(0.9, 0.86, 0.78))
+	info.position = Vector2(x0 - 30, 30 + 20 * chh)
 	traccia.add_child(info)
 
 func _opzioni_mie() -> Array:
@@ -1011,8 +1007,9 @@ func _disegna_mano(vs: Vector2) -> void:
 	var n := ordinate.size()
 	if n == 0:
 		return
-	var passo: float = min(CW + 6, (vs.x - 500) / max(1, n))
-	var x0: float = vs.x * 0.5 - (passo * (n - 1) + CW) * 0.5
+	var area := vs.x - BARRA
+	var passo: float = min(CW + 6, (area - 60) / max(1, n))
+	var x0: float = area * 0.5 - (passo * (n - 1) + CW) * 0.5
 	for k in ordinate.size():
 		var id: int = ordinate[k]
 		var c := _carta_cliccabile(id, CW, CH, _contiene(opz, id))
@@ -1077,45 +1074,54 @@ func _disegna_avversario(vs: Vector2) -> void:
 	var vede := Motore.vede_mano(st, spettatore())
 	var nome := etichetta("%s: %d cart%s in mano%s" % [nomi[chi], mano.size(), "a" if mano.size() == 1 else "e", " (scoperte)" if vede else ""], F_TITOLO, 15, COL_G if chi == "G" else COL_B)
 	box_avv.add_child(nome)
-	var w := 46.0
-	var h := 71.0
+	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nome.custom_minimum_size = Vector2(BARRA - 30, 0)
+	var w := 44.0
+	var h := 68.0
 	var k := 0
 	for id in mano:
 		var scoperta: bool = vede or (spettatore() == "G" and id in st["rivelate"])
 		if not scoperta:
 			continue
 		var t := immagine_carta(tex_carta(id), w, h)
-		t.position = Vector2(k * (w + 3), 26)
+		t.position = Vector2((k % 5) * (w + 3), 44 + (k / 5) * (h + 3))
 		t.mouse_filter = Control.MOUSE_FILTER_PASS
 		t.pivot_offset = Vector2(0, 0)
 		t.mouse_entered.connect(func(): t.scale = Vector2(3, 3); t.z_index = 10)
 		t.mouse_exited.connect(func(): t.scale = Vector2.ONE; t.z_index = 0)
 		box_avv.add_child(t)
 		k += 1
+	box_avv.custom_minimum_size = Vector2(BARRA - 30, 42 + (0 if k == 0 else (h + 4) * ceil(k / 5.0)))
 	# la carta incantata, scoperta sul tavolo
 	svuota(lbl_incantata)
 	var inc: int = st["f"].get("incantata", -1)
 	if inc != -1:
 		var t2 := immagine_carta(tex_carta(inc), 70, 108)
-		t2.position = Vector2(vs.x - 90, 120)
+		t2.position = Vector2(12, 300)
 		lbl_incantata.add_child(t2)
 		var l2 := etichetta("incantata", F_CORSIVO, 15, COL_G)
-		l2.position = Vector2(vs.x - 90, 230)
+		l2.position = Vector2(12, 410)
 		lbl_incantata.add_child(l2)
 
 func _disegna_riga(vs: Vector2) -> void:
 	svuota(box_riga)
 	var riga: Array = st["riga"]
 	if riga.is_empty():
+		gap_idx = -1
+		vola_idx = -1
 		return
-	var w := 78.0
-	var h := 121.0
+	var n := riga.size()
 	var a: Dictionary = st["attesa"]
 	var frusta: bool = not a.is_empty() and a["tipo"] == "frusta" and a["chi"] == spettatore() and occupato <= 0.0
-	var n := riga.size()
-	var passo: float = min(w + 5, (vs.x - 420) / max(1, n))
-	var x0: float = vs.x * 0.5 - (passo * (n - 1) + w) * 0.5
-	var y0 := 76.0
+	# le carte si rimpiccioliscono man mano che la fila si allunga
+	var area := vs.x - BARRA
+	var w: float = clamp((area - 40.0 - 190.0) / max(n, 8) - 6.0, 62.0, 135.0)
+	var h := w * 1.55
+	var passo := w + 6.0
+	var gap: float = max(190.0, w * 1.8) if gap_idx >= 0 and gap_idx < n else 0.0
+	var x0: float = area * 0.5 - (passo * (n - 1) + w + gap) * 0.5
+	var y0 := 14.0
+	riga_lay = {"x0": x0, "y0": y0, "w": w, "h": h, "passo": passo, "gap": gap}
 	for i in n:
 		var r: Dictionary = riga[i]
 		var c: Control
@@ -1132,12 +1138,14 @@ func _disegna_riga(vs: Vector2) -> void:
 			var t := immagine_carta(tex_carta(r["id"]), w, h)
 			t.mouse_filter = Control.MOUSE_FILTER_PASS
 			t.pivot_offset = Vector2(w * 0.5, 0)
-			t.mouse_entered.connect(func(): t.scale = Vector2(2.8, 2.8); t.z_index = 10)
+			t.mouse_entered.connect(func(): t.scale = Vector2(2.2, 2.2); t.z_index = 10)
 			t.mouse_exited.connect(func(): t.scale = Vector2.ONE; t.z_index = 0)
 			c = t
 			if r.get("frusta", false) or r.get("riempita", false):
 				c.modulate = Color(0.6, 0.6, 0.6)
-		c.position = Vector2(x0 + i * passo, y0)
+		var pos := _slot(i)
+		c.position = pos
+		c.set_meta("i", i)
 		box_riga.add_child(c)
 		var bordo := Panel.new()
 		var s := StyleBoxFlat.new()
@@ -1147,9 +1155,28 @@ func _disegna_riga(vs: Vector2) -> void:
 		s.set_corner_radius_all(6)
 		bordo.add_theme_stylebox_override("panel", s)
 		bordo.size = Vector2(w, h + 4)
-		bordo.position = c.position
+		bordo.position = pos
 		bordo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bordo.set_meta("i", i)
 		box_riga.add_child(bordo)
+		# la carta appena giocata arriva in volo
+		if i == vola_idx:
+			for nodo in [c, bordo]:
+				nodo.position = vola_da - Vector2(w * 0.5, h * 0.5)
+				nodo.scale = Vector2(1.6, 1.6)
+				nodo.z_index = 20
+				var tw := create_tween()
+				tw.tween_property(nodo, "position", pos, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+				tw.parallel().tween_property(nodo, "scale", Vector2.ONE, 0.5)
+				tw.tween_callback(func(): nodo.z_index = 0)
+	vola_idx = -1
+
+## Posizione della carta i nella fila (con lo spazio dello scambio, se aperto).
+func _slot(i: int) -> Vector2:
+	var x: float = riga_lay["x0"] + i * riga_lay["passo"]
+	if gap_idx >= 0 and i >= gap_idx:
+		x += riga_lay["gap"]
+	return Vector2(x, riga_lay["y0"])
 
 func _disegna_riserve() -> void:
 	var chi := spettatore()

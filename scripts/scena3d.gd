@@ -25,6 +25,7 @@ var gradino := {"G": 0, "B": 0}
 var scossa := 0.0
 var t := 0.0
 var auto_giro := true
+var spostamento_px := 0.0   # quanti pixel a destra sono coperti dalla barra: la scena si centra nel resto
 var mira_y := 1.4   # altezza a cui guarda la telecamera (più alta: il ponte scende sullo schermo)
 var mat_lava: StandardMaterial3D
 var mat_lava2: StandardMaterial3D
@@ -538,6 +539,10 @@ func _aggiorna_camera() -> void:
 		j = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * scossa * 0.18
 	cam.position = centro + dir * dist + j
 	cam.look_at(centro + j * 0.5, Vector3.UP)
+	var vs := get_viewport().get_visible_rect().size
+	if vs.x > 0:
+		var largo_mondo := 2.0 * dist * tan(deg_to_rad(cam.fov) * 0.5) * vs.x / vs.y
+		cam.h_offset = spostamento_px / vs.x * largo_mondo
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseButton:
@@ -563,7 +568,7 @@ func visuale(n: int) -> void:
 			yaw = -0.12
 			pitch = -0.2
 			dist = 19.5
-			mira_y = 4.6
+			mira_y = 3.6
 		1:
 			yaw = -PI / 2 + 0.2
 			pitch = -0.18
