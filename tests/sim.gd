@@ -47,8 +47,16 @@ func _init() -> void:
 	print("RISULTATI ", vinte, " finite in cima prima del finale: ", cima, " passi medi ", tot / max(1, n), " speciali ", spec, " ms ", Time.get_ticks_msec() - t0)
 	quit()
 
-## Controlli di coerenza: nessuna carta persa o duplicata.
+## Controlli di coerenza: nessuna carta persa o duplicata; ogni carta giocabile si vede nella mano.
 func _controlla(st: Dictionary) -> void:
+	var a: Dictionary = st["attesa"]
+	if not a.is_empty() and a["tipo"] in ["gioca", "difesa"]:
+		var visibili: Array = st["mano"][a["chi"]].duplicate()
+		if a["chi"] == "B" and st["f"].get("incantata", -1) != -1:
+			visibili.append(st["f"]["incantata"])
+		for o in a["opzioni"]:
+			if not (o in visibili):
+				push_error("carta giocabile %d non visibile nella mano di %s" % [o, a["chi"]])
 	for chi in ["G", "B"]:
 		var tutte := []
 		tutte += st["mazzo"][chi] + st["mano"][chi] + st["riserva"][chi] + st["riserva_duello"][chi]

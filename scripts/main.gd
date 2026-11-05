@@ -1002,18 +1002,26 @@ func _disegna_mano(vs: Vector2) -> void:
 	var chi := spettatore()
 	var mano: Array = st["mano"][chi]
 	var opz := _opzioni_mie()
-	var n := mano.size()
+	var ordinate := mano.duplicate()
+	ordinate.sort()
+	# la carta incantata è scoperta sul tavolo ma resta del Balrog: si gioca da qui, in fondo alla mano
+	var inc: int = st["f"].get("incantata", -1)
+	if chi == "B" and inc != -1:
+		ordinate.append(inc)
+	var n := ordinate.size()
 	if n == 0:
 		return
 	var passo: float = min(CW + 6, (vs.x - 500) / max(1, n))
 	var x0: float = vs.x * 0.5 - (passo * (n - 1) + CW) * 0.5
-	var ordinate := mano.duplicate()
-	ordinate.sort()
 	for k in ordinate.size():
 		var id: int = ordinate[k]
 		var c := _carta_cliccabile(id, CW, CH, _contiene(opz, id))
 		c.position = Vector2(x0 + k * passo, 0)
 		box_mano.add_child(c)
+		if id == inc and chi == "B":
+			var l := etichetta("incantata", F_CORSIVO, 15, COL_G)
+			l.position = Vector2(4, -22)
+			c.add_child(l)
 
 func _contiene(a: Array, v) -> bool:
 	for x in a:
