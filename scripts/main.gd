@@ -533,17 +533,26 @@ func _apri_tavolo() -> void:
 	lbl_ponte = etichetta("", F_TITOLO, 1, COL_TESTO)
 	lbl_ponte.visible = false
 	vb.add_child(lbl_ponte)
-	box_avv = Control.new()
-	box_avv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vb.add_child(box_avv)
-	pannello_riserve = etichetta("", F_TESTO, 16, Color(0.9, 0.85, 0.78))
-	pannello_riserve.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	pannello_riserve.custom_minimum_size = Vector2(BARRA - 30, 0)
-	vb.add_child(pannello_riserve)
+	# l'energia sta sempre allo stesso posto, subito sotto i pulsanti
 	traccia = Control.new()
 	traccia.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	traccia.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vb.add_child(traccia)
+	vb.add_child(HSeparator.new())
+	# sotto, le informazioni che cambiano: se sono tante si scorrono, senza spostare nulla
+	var scorri := ScrollContainer.new()
+	scorri.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scorri.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scorri)
+	var info := VBoxContainer.new()
+	info.add_theme_constant_override("separation", 6)
+	scorri.add_child(info)
+	box_avv = Control.new()
+	box_avv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info.add_child(box_avv)
+	pannello_riserve = etichetta("", F_TESTO, 16, Color(0.9, 0.85, 0.78))
+	pannello_riserve.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pannello_riserve.custom_minimum_size = Vector2(BARRA - 34, 0)
+	info.add_child(pannello_riserve)
 	box_riga = Control.new()
 	box_riga.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(box_riga)
@@ -806,15 +815,15 @@ func _mostra_scambio(e: Dictionary) -> void:
 	var col_dif := COL_G if e["difensore"] == "G" else COL_B
 	var rit := 0.0
 	for r in e["subiti"]:
-		_freccia_sfumata(Vector2(sx, y0 + h * righe[r]), Vector2(dx, y0 + h * righe[r]), col_att, rit, true)
+		_freccia_sfumata(Vector2(sx, y0 + h * righe[r]), Vector2(dx, y0 + h * righe[r]), col_att, rit, true, _scuoti.bind(gap_idx, col_att))
 		rit += 0.38
 	for r in e["inflitti"]:
-		_freccia_sfumata(Vector2(dx, y0 + h * righe[r]), Vector2(sx, y0 + h * righe[r]), col_dif, rit, true)
+		_freccia_sfumata(Vector2(dx, y0 + h * righe[r]), Vector2(sx, y0 + h * righe[r]), col_dif, rit, true, _scuoti.bind(gap_idx - 1, col_dif))
 		rit += 0.38
 	for r in e["parati"]:
 		var y: float = y0 + h * righe[r]
-		_freccia_sfumata(Vector2(sx, y), Vector2(lerp(sx, centro, 0.8), y), COL_ORO, rit, false)
-		_freccia_sfumata(Vector2(dx, y), Vector2(lerp(dx, centro, 0.8), y), COL_ORO, rit, false)
+		_freccia_sfumata(Vector2(sx, y), Vector2(centro, y), COL_ORO, rit, false, _bagliore.bind(Vector2(centro, y)))
+		_freccia_sfumata(Vector2(dx, y), Vector2(centro, y), COL_ORO, rit, false)
 		rit += 0.3
 	if e.get("riflesso", false):
 		var l := etichetta("riflesso", F_CORSIVO, 15, COL_G)
@@ -827,7 +836,7 @@ func _mostra_scambio(e: Dictionary) -> void:
 
 ## Freccia dalla carta: la parata svanisce prima del centro; il colpo passa, sfuma a metà e torna piena
 ## sulla carta colpita, dove finisce con una punta.
-func _freccia_sfumata(a: Vector2, b: Vector2, col: Color, ritardo := 0.0, colpo := false) -> void:
+func _freccia_sfumata(a: Vector2, b: Vector2, col: Color, ritardo := 0.0, colpo := false, alla_fine := Callable()) -> void:
 	var piena := Color(col.r, col.g, col.b, 1.0)
 	var vuota := Color(col.r, col.g, col.b, 0.0)
 	var l := Line2D.new()
@@ -890,7 +899,69 @@ func _freccia_sfumata(a: Vector2, b: Vector2, col: Color, ritardo := 0.0, colpo 
 		l.gradient = _taglia(g, t)
 		alone.gradient = _taglia(g2, t)
 		if colpo and t >= 0.999:
-			punta.visible = true, 0.0, 1.0, 1.4 if colpo else 0.9).set_ease(Tween.EASE_IN_OUT)
+			punta.visible = true, 0.0, 1.0, 0.45 if colpo else 0.35).set_ease(Tween.EASE_IN)
+	if alla_fine.is_valid():
+		tw.tween_callback(alla_fine)
+	if not colpo:
+		# la parata, dopo l'incontro, si dissolve
+		tw.tween_property(l, "modulate:a", 0.0, 0.5)
+		tw.parallel().tween_property(alone, "modulate:a", 0.0, 0.5)
+
+## La carta colpita sobbalza e si illumina del colore di chi colpisce.
+func _scuoti(i: int, col: Color) -> void:
+	for c in box_riga.get_children():
+		if c.get_meta("i", -1) != i or not (c is TextureRect or c is TextureButton):
+			continue
+		var x0: float = c.position.x
+		var tw := create_tween()
+		for k in 6:
+			var d := 9.0 * (1.0 - k / 6.0) * (1 if k % 2 == 0 else -1)
+			tw.tween_property(c, "position:x", x0 + d, 0.035)
+		tw.tween_property(c, "position:x", x0, 0.035)
+		c.modulate = Color(1.0 + col.r, 1.0 + col.g * 0.6, 1.0 + col.b * 0.6)
+		var tw2 := create_tween()
+		tw2.tween_property(c, "modulate", Color.WHITE, 0.4)
+	_bagliore(Vector2.INF, col, 0.6, i)
+
+## Un lampo di luce morbido (parate a metà strada, oppure sulla carta colpita).
+func _bagliore(p: Vector2, col := COL_ORO, forza := 1.0, su_carta := -1) -> void:
+	if su_carta >= 0 and not riga_lay.is_empty():
+		p = _slot(su_carta) + Vector2(riga_lay["w"] * 0.5, riga_lay["h"] * 0.5)
+	var t := TextureRect.new()
+	t.texture = load("res://assets/3d/scintilla.png")
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	var dim := 90.0 * forza
+	t.size = Vector2(dim, dim)
+	t.pivot_offset = t.size * 0.5
+	t.position = p - t.size * 0.5
+	t.modulate = Color(col.r * 1.4, col.g * 1.3, col.b * 1.2, 1.0)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	t.material = m
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	t.scale = Vector2(0.3, 0.3)
+	popup_scambio.add_child(t)
+	var tw := create_tween()
+	tw.tween_property(t, "scale", Vector2(1.6, 1.6), 0.18).set_ease(Tween.EASE_OUT)
+	tw.tween_property(t, "scale", Vector2(2.2, 2.2), 0.4)
+	tw.parallel().tween_property(t, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(t.queue_free)
+	# qualche scintilla che schizza
+	for k in 10:
+		var sc := TextureRect.new()
+		sc.texture = t.texture
+		sc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sc.size = Vector2(10, 10)
+		sc.position = p - Vector2(5, 5)
+		sc.material = m
+		sc.modulate = t.modulate
+		sc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		popup_scambio.add_child(sc)
+		var dir := Vector2.from_angle(randf() * TAU) * randf_range(25, 60) * forza
+		var tw2 := create_tween()
+		tw2.tween_property(sc, "position", sc.position + dir, 0.45).set_ease(Tween.EASE_OUT)
+		tw2.parallel().tween_property(sc, "modulate:a", 0.0, 0.45)
+		tw2.tween_callback(sc.queue_free)
 
 ## Il pezzo [0, t] di un gradiente, riscalato su [0, 1].
 func _taglia(g: Gradient, t: float) -> Gradient:
@@ -931,14 +1002,15 @@ func _aggiorna() -> void:
 func _disegna_traccia(_vs: Vector2) -> void:
 	svuota(traccia)
 	var vs := get_viewport().get_visible_rect().size
-	var cima: float = traccia.global_position.y if traccia.global_position.y > 50.0 else 250.0
-	var chh: float = clamp((vs.y - cima - 90.0) / 20.0, 12.0, 30.0)
-	if traccia.global_position.y < 50.0:
-		_disegna_traccia.call_deferred(vs)
+	# altezza fissa: dipende solo dallo schermo, lascia sotto lo spazio per le informazioni
+	var chh: float = clamp((vs.y - 150.0 - 260.0) / 20.0, 11.0, 26.0)
+	traccia.custom_minimum_size = Vector2(BARRA - 30, 26 + 20 * chh + 46)
 	var cw := 70.0
-	var x0 := (BARRA - 30 - cw) * 0.5 - 14
+	var x0 := (BARRA - 30 - cw) * 0.5 - 10
 	var lab := etichetta("Energia", F_TITOLO, 16, COL_ORO)
-	lab.position = Vector2(x0 - 6, 0)
+	lab.size = Vector2(BARRA - 30, 22)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.position = Vector2(0, 0)
 	traccia.add_child(lab)
 	for i in 20:
 		var val := 15 - i
@@ -976,8 +1048,10 @@ func _disegna_traccia(_vs: Vector2) -> void:
 		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		traccia.add_child(g)
 	var vuote: int = max(0, abs(st["energia"]["G"] - st["energia"]["B"]) - 1)
-	var info := etichetta("Gandalf %d, Balrog %d\ncaselle vuote: %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 15, Color(0.9, 0.86, 0.78))
-	info.position = Vector2(x0 - 30, 30 + 20 * chh)
+	var info := etichetta("Gandalf %d, Balrog %d, vuote %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 15, Color(0.9, 0.86, 0.78))
+	info.size = Vector2(BARRA - 30, 22)
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.position = Vector2(0, 30 + 20 * chh)
 	traccia.add_child(info)
 
 func _opzioni_mie() -> Array:
@@ -1075,7 +1149,8 @@ func _disegna_avversario(vs: Vector2) -> void:
 	var nome := etichetta("%s: %d cart%s in mano%s" % [nomi[chi], mano.size(), "a" if mano.size() == 1 else "e", " (scoperte)" if vede else ""], F_TITOLO, 15, COL_G if chi == "G" else COL_B)
 	box_avv.add_child(nome)
 	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	nome.custom_minimum_size = Vector2(BARRA - 30, 0)
+	nome.custom_minimum_size = Vector2(BARRA - 34, 0)
+	nome.size = Vector2(BARRA - 34, 40)
 	var w := 44.0
 	var h := 68.0
 	var k := 0
@@ -1091,7 +1166,7 @@ func _disegna_avversario(vs: Vector2) -> void:
 		t.mouse_exited.connect(func(): t.scale = Vector2.ONE; t.z_index = 0)
 		box_avv.add_child(t)
 		k += 1
-	box_avv.custom_minimum_size = Vector2(BARRA - 30, 42 + (0 if k == 0 else (h + 4) * ceil(k / 5.0)))
+	box_avv.custom_minimum_size = Vector2(BARRA - 34, 42 + (0 if k == 0 else (h + 4) * ceil(k / 5.0)))
 	# la carta incantata, scoperta sul tavolo
 	svuota(lbl_incantata)
 	var inc: int = st["f"].get("incantata", -1)
