@@ -15,6 +15,11 @@ for f in glob.glob(R + '/scripts/*.gd'):
     testi += re.findall(r'"""(.*?)"""', src, re.S)
     src = re.sub(r'"""(.*?)"""', '', src, flags=re.S)
     testi += re.findall(r'"((?:[^"\\]|\\.)*)"', src)
+for f in glob.glob(R + '/web/js/telefono.js') + glob.glob(R + '/web/telefono.html'):
+    src = open(f, encoding='utf-8').read()
+    testi += re.findall(r"'((?:[^'\\\n]|\\.)*)'", src)
+    testi += re.findall(r'`([^`]*)`', src)
+    testi += re.findall(r'>([^<>{}]+)<', src)
 caratteri = set(''.join(testi)) - set('\n\t\r')
 errori = 0
 for font in sorted(glob.glob(R + '/assets/font/*.ttf')):

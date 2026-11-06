@@ -62,6 +62,11 @@ var gap_idx := -1
 var vola_idx := -1
 var vola_da := Vector2.ZERO
 var riga_lay := {}
+# telefoni: ruolo -> {uid, nome}
+var telefoni: Telefoni
+var tel := {}
+var finestra_tel: Control
+var lista_tel: Label
 var box_scoperte: Control
 var mano_sinistra := 0.0
 var mano_destra := 0.0
@@ -75,6 +80,9 @@ func _ready() -> void:
 	F_CORSIVO = load("res://assets/font/EBGaramond-Italic.ttf")
 	net = Rete.new()
 	add_child(net)
+	telefoni = Telefoni.new()
+	add_child(telefoni)
+	telefoni.evento.connect(_evento_telefono)
 	scena = Scena3D.new()
 	add_child(scena)
 	ui = CanvasLayer.new()
@@ -508,6 +516,9 @@ func _apri_tavolo() -> void:
 	scena.visuale(0)
 	scena.spostamento_px = BARRA * 0.5
 	scena.suoni.avvia_sottofondo()
+	# per le prove: ?tel apre subito la stanza dei telefoni
+	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(location.search).has('tel')")) == "true":
+		_apri_telefono.call_deferred()
 	if decisioni.is_empty():
 		scena.frase("G", 1.2, "gandalf_non_passerai")
 	scena.metti_figure(st["figura"]["G"], st["figura"]["B"])
@@ -544,6 +555,11 @@ func _apri_tavolo() -> void:
 	b_audio.add_theme_stylebox_override("hover", _stile_piccolo(Color(0.25, 0.18, 0.12)))
 	b_audio.pressed.connect(func(): b_audio.text = "Audio: sì" if scena.suoni.cambia() else "Audio: no")
 	vb.add_child(b_audio)
+	if telefoni.disponibile():
+		var b_tel := bottone("Gioca col telefono", _apri_telefono, Color(0.2, 0.1, 0.06), 12)
+		b_tel.add_theme_stylebox_override("normal", _stile_piccolo(Color(0.3, 0.12, 0.05)))
+		b_tel.add_theme_stylebox_override("hover", _stile_piccolo(Color(0.4, 0.18, 0.08)))
+		vb.add_child(b_tel)
 	lbl_ponte = etichetta("", F_TITOLO, 1, COL_TESTO)
 	lbl_ponte.visible = false
 	vb.add_child(lbl_ponte)
@@ -617,6 +633,11 @@ func _apri_tavolo() -> void:
 	finestra_diario.visible = false
 	tavolo.add_child(finestra_diario)
 	_costruisci_diario()
+	finestra_tel = Control.new()
+	finestra_tel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	finestra_tel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	finestra_tel.visible = false
+	tavolo.add_child(finestra_tel)
 	popup_scambio = Control.new()
 	popup_scambio.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(popup_scambio)
@@ -658,6 +679,160 @@ func _costruisci_diario() -> void:
 func _apri_diario() -> void:
 	finestra_diario.visible = not finestra_diario.visible
 
+# ============================================================ telefoni
+
+func _ruoli_consentiti() -> Array:
+	if not in_partita:
+		return []
+	return ["G", "B"] if modo == "locale" else [io]
+
+func _apri_telefono() -> void:
+	telefoni.avvia()
+	finestra_tel.visible = not finestra_tel.visible
+	_disegna_finestra_tel()
+
+func _disegna_finestra_tel() -> void:
+	svuota(finestra_tel)
+	if not finestra_tel.visible:
+		return
+	var p := pannello(Color(0.05, 0.03, 0.02, 0.95))
+	p.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	p.offset_left = -BARRA - 360
+	p.offset_right = -BARRA - 14
+	p.offset_top = -270
+	p.offset_bottom = 270
+	finestra_tel.add_child(p)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	p.add_child(v)
+	v.add_child(etichetta("Gioca col telefono", F_TITOLO, 20, COL_ORO))
+	var spieg := etichetta("Inquadra il codice con la fotocamera: le tue carte passano sul telefono e spariscono dalla TV.", F_TESTO, 16)
+	spieg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	spieg.custom_minimum_size = Vector2(300, 0)
+	v.add_child(spieg)
+	if telefoni.codice == "":
+		v.add_child(etichetta("Apro la stanza...", F_CORSIVO, 18))
+	else:
+		var cc := CenterContainer.new()
+		var t := TextureRect.new()
+		t.texture = telefoni.qr(telefoni.url, 240)
+		t.custom_minimum_size = Vector2(240, 240)
+		cc.add_child(t)
+		v.add_child(cc)
+		var c := etichetta("Codice: " + telefoni.codice, F_TITOLO, 24, Color(1, 0.9, 0.7))
+		c.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(c)
+	lista_tel = etichetta("", F_TESTO, 16)
+	lista_tel.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lista_tel.custom_minimum_size = Vector2(300, 0)
+	v.add_child(lista_tel)
+	_aggiorna_lista_tel()
+	v.add_child(bottone("Chiudi", func(): finestra_tel.visible = false, Color(0.15, 0.12, 0.1), 15))
+
+func _aggiorna_lista_tel() -> void:
+	if not is_instance_valid(lista_tel):
+		return
+	var t := ""
+	for r in ["G", "B"]:
+		if tel.has(r):
+			t += "%s: telefono di %s\n" % ["Gandalf" if r == "G" else "Il Balrog", tel[r]["nome"]]
+	lista_tel.text = t if t != "" else "Nessun telefono collegato."
+
+func _evento_telefono(e: Dictionary) -> void:
+	match e.get("e", ""):
+		"stanza":
+			if is_instance_valid(finestra_tel) and finestra_tel.visible:
+				_disegna_finestra_tel()
+			_invia_telefoni()
+		"entra":
+			var r := str(e.get("ruolo", ""))
+			var uid := str(e.get("uid", ""))
+			if not (r in _ruoli_consentiti()) or (tel.has(r) and tel[r]["uid"] != uid):
+				telefoni.togli(uid)
+				return
+			for k in tel.keys():
+				if tel[k]["uid"] == uid and k != r:
+					tel.erase(k)
+			tel[r] = {"uid": uid, "nome": str(e.get("nome", "?"))}
+			_avviso("%s prende le carte di %s sul telefono." % [tel[r]["nome"], "Gandalf" if r == "G" else "il Balrog"])
+			# tutti i ruoli giocabili hanno il telefono: il QR code si chiude da solo
+			var tutti := true
+			for rr in _ruoli_consentiti():
+				if not tel.has(rr):
+					tutti = false
+			if tutti and is_instance_valid(finestra_tel):
+				finestra_tel.visible = false
+			svuota(dialogo)
+			mostrata = -1
+			_aggiorna_lista_tel()
+			_aggiorna()
+		"esce":
+			for k in tel.keys():
+				if tel[k]["uid"] == str(e.get("uid", "")):
+					tel.erase(k)
+					mostrata = -1
+			_aggiorna_lista_tel()
+			_aggiorna()
+		"azione":
+			var d = JSON.parse_string(str(e.get("p", "")))
+			if not (d is Dictionary) or not in_partita or occupato > 0.0 and d.get("tipo", "") != "avanti":
+				if d is Dictionary and in_partita:
+					# animazione in corso: la mossa si applica appena finisce
+					get_tree().create_timer(max(occupato, 0.1) + 0.05).timeout.connect(func(): _evento_telefono(e))
+				return
+			var a: Dictionary = st["attesa"]
+			if a.is_empty() or int(d.get("n", -1)) != int(st["n"]):
+				return
+			var ruolo := ""
+			for k in tel:
+				if tel[k]["uid"] == str(e.get("uid", "")):
+					ruolo = k
+			if ruolo == "" or (a["chi"] != ruolo and a["tipo"] != "avanti"):
+				return
+			var v = d.get("v")
+			if v is float:
+				v = int(v)
+			if v is Array:
+				var vv := []
+				for x in v:
+					vv.append(int(x))
+				v = vv
+			_applica({"tipo": str(d.get("tipo", "")), "v": v})
+
+## Manda a ogni telefono lo stato della partita e, solo a lui, le sue carte e la domanda.
+func _invia_telefoni() -> void:
+	if telefoni == null or telefoni.codice == "" or st.is_empty():
+		return
+	var ruoli := {"G": "", "B": ""}
+	for r in tel:
+		ruoli[r] = tel[r]["nome"]
+	var e: Dictionary = st["energia"]
+	telefoni.stato({"titolo": "Duello finale" if st["duello"] == 4 else "Duello %d di 3" % st["duello"],
+		"energia": e, "vuote": max(0, abs(e["G"] - e["B"]) - 1), "figura": st["figura"],
+		"msg": Motore.descrivi_attesa(st), "ultimo": st["diario"][-1] if not st["diario"].is_empty() else "",
+		"ruoli": ruoli, "consentiti": _ruoli_consentiti(), "fine": st["vincitore"]})
+	var a: Dictionary = st["attesa"]
+	for r in tel:
+		var m := {"n": st["n"], "ruolo": r, "mano": st["mano"][r], "incantata": -1, "forzata": st["f"].get("forzata", -1) if r == "G" else -1, "tipo": "", "scoperte": []}
+		if r == "B":
+			m["incantata"] = st["f"].get("incantata", -1)
+		var altro := Motore.altro(r)
+		for id in st["mano"][altro]:
+			if Motore.vede_mano(st, r) or (r == "G" and id in st["rivelate"]):
+				m["scoperte"].append(id)
+		if not a.is_empty() and (a["chi"] == r or a["tipo"] == "avanti"):
+			m["tipo"] = a["tipo"]
+			m["opzioni"] = a.get("opzioni", [])
+			m["quante"] = a.get("quante", 0)
+			m["carta"] = a.get("carta", -1)
+			m["motivo"] = a.get("motivo", "")
+			if a["tipo"] == "frusta":
+				var righe := []
+				for i in a["opzioni"]:
+					righe.append({"i": i, "id": st["riga"][i]["id"]})
+				m["riga"] = righe
+		telefoni.segreto(tel[r]["uid"], m)
+
 func _cambia_visuale() -> void:
 	var n: int = (scena.get_meta("v", 0) + 1) % 4
 	scena.set_meta("v", n)
@@ -695,6 +870,10 @@ func _process(delta: float) -> void:
 			_aspetta_remoto()
 		return
 	var chi: String = a["chi"]
+	if tel.has(chi):
+		# decide il telefono: la TV aspetta
+		mostrata = st["n"]
+		return
 	if modo == "ia" and chi != io:
 		attesa_ia += delta
 		if attesa_ia > 0.7:
@@ -1009,6 +1188,7 @@ func _taglia(g: Gradient, t: float) -> Gradient:
 func _aggiorna() -> void:
 	if not in_partita or not is_instance_valid(tavolo):
 		return
+	_invia_telefoni()
 	var vs := get_viewport().get_visible_rect().size
 	var duello: int = st["duello"]
 	lbl_titolo.text = "Duello finale" if duello == 4 else "Duello %d di 3" % duello
@@ -1097,6 +1277,15 @@ func passaggio_attivo() -> bool:
 
 func _disegna_mano(vs: Vector2) -> void:
 	svuota(box_mano)
+	if tel.has(spettatore()):
+		var l := etichetta("Le carte di %s sono sul telefono di %s" % ["Gandalf" if spettatore() == "G" else "Balrog", tel[spettatore()]["nome"]], F_CORSIVO, 20, COL_ORO)
+		l.position = Vector2(0, CH * 0.5)
+		l.size = Vector2(vs.x - BARRA, 30)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		box_mano.add_child(l)
+		mano_sinistra = (vs.x - BARRA) * 0.5
+		mano_destra = mano_sinistra
+		return
 	var chi := spettatore()
 	var mano: Array = st["mano"][chi]
 	var opz := _opzioni_mie()
@@ -1180,6 +1369,8 @@ func _clic_carta(id: int) -> void:
 		_applica({"tipo": a["tipo"], "v": id})
 
 func _quante_scoperte() -> int:
+	if tel.has(spettatore()):
+		return 0
 	var chi := Motore.altro(spettatore())
 	var vede := Motore.vede_mano(st, spettatore())
 	var k := 0
@@ -1202,6 +1393,8 @@ func _disegna_avversario(vs: Vector2) -> void:
 	box_avv.custom_minimum_size = Vector2(BARRA - 34, 64)
 	# le carte scoperte dell'avversario: piccole, accanto alla tua mano, su due righe
 	svuota(box_scoperte)
+	if tel.has(spettatore()):
+		return
 	var scoperte := []
 	for id in mano:
 		if vede or (spettatore() == "G" and id in st["rivelate"]):

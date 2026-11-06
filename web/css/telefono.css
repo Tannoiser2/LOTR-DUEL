@@ -1,0 +1,57 @@
+@font-face { font-family: 'Cinzel'; src: url('../font/Cinzel.ttf'); font-weight: 400 900; }
+@font-face { font-family: 'Garamond'; src: url('../font/EBGaramond.ttf'); font-weight: 400 800; }
+@font-face { font-family: 'Deco'; src: url('../font/CinzelDecorative-Bold.ttf'); }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; min-height: 100%; }
+body { background: radial-gradient(ellipse at 50% 120%, #6a1c06 0%, #24090a 45%, #0b0606 100%) fixed; color: #efe6d6;
+  font-family: 'Garamond', Georgia, serif; font-size: 18px; user-select: none; -webkit-user-select: none; }
+#app { max-width: 720px; margin: 0 auto; padding: 8px 10px calc(12px + env(safe-area-inset-bottom)); }
+h1, h2 { font-family: 'Cinzel', serif; color: #edc985; margin: 6px 0; font-weight: 700; }
+h1 { font-family: 'Deco', 'Cinzel', serif; font-size: 34px; text-align: center; color: #ffe0a0; text-shadow: 0 2px 4px #000; }
+.sotto { text-align: center; font-style: italic; margin-top: -4px; color: #cdbfa7; }
+.box { background: rgba(14, 7, 5, .82); border: 2px solid #8a6a32; border-radius: 14px; padding: 14px; margin: 10px 0; }
+input { width: 100%; font-size: 24px; padding: 10px; border-radius: 10px; border: 2px solid #8a6a32; background: #1c120d; color: #fff;
+  font-family: 'Cinzel', serif; text-align: center; }
+button, .bottone { font-family: 'Cinzel', serif; font-weight: 700; font-size: 20px; color: #f3d79a; background: #3a1a0c;
+  border: 2px solid #a07a38; border-radius: 12px; padding: 10px 16px; margin: 6px 0; width: 100%; cursor: pointer; display: block;
+  text-align: center; text-decoration: none; }
+button:disabled { opacity: .35; }
+button.primario { background: #6b2008; border-color: #e0a85a; font-size: 24px; }
+.ruoli { display: flex; gap: 10px; }
+.ruolo { flex: 1; padding: 6px; }
+.ruolo img { width: 100%; border-radius: 10px; display: block; }
+.ruolo.scelto { border-color: #ffd27a; box-shadow: 0 0 12px #ffb040; }
+.piccolo { font-size: 15px; color: #bfb19b; }
+/* barra dell'energia */
+.energia { position: sticky; top: 0; z-index: 5; background: rgba(10, 5, 4, .94); border: 1px solid #6a5a3a; border-radius: 10px;
+  padding: 6px 8px 4px; margin-bottom: 8px; }
+.traccia { display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px; }
+.casella { height: 26px; border-radius: 4px; background: #252b66; border: 1px solid #5a63a8; position: relative; }
+.casella.neg { background: #561a1e; border-color: #a04848; }
+.casella.d { border: 2px solid #fff; }
+.casella.f { border: 2px solid #ff9a30; }
+.seg { position: absolute; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 2px solid #111; }
+.seg.g { top: 0; background: #e8ecff; }
+.seg.b { bottom: 0; background: #e02a10; }
+.info { display: flex; justify-content: space-between; font-size: 15px; margin-top: 3px; }
+.info b { font-family: 'Cinzel', serif; color: #edc985; }
+.messaggio { font-family: 'Cinzel', serif; font-size: 19px; text-align: center; color: #ffe6b8; margin: 8px 0; min-height: 26px; }
+.messaggio.tocca { color: #ffd060; text-shadow: 0 0 8px #ff9a20; }
+/* carte */
+.mano { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.carta { position: relative; border-radius: 9px; overflow: hidden; border: 3px solid transparent; transition: transform .12s; }
+.carta img { width: 100%; display: block; }
+.carta.spenta { opacity: .45; }
+.carta.attiva { border-color: #c79a4a; }
+.carta.scelta { border-color: #ffd27a; transform: translateY(-6px); box-shadow: 0 0 16px #ffb040; }
+.carta .etichetta { position: absolute; left: 0; right: 0; top: 0; background: rgba(40, 60, 120, .85); font-size: 13px; text-align: center; }
+.scoperte { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; margin-top: 6px; }
+.scoperte img { width: 100%; border-radius: 5px; }
+.grande { position: fixed; inset: 0; background: rgba(0, 0, 0, .85); display: flex; flex-direction: column; align-items: center;
+  justify-content: center; z-index: 20; padding: 16px; }
+.grande img { max-width: 92vw; max-height: 72vh; border-radius: 14px; }
+.grande .azioni { width: min(420px, 92vw); }
+.riga { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.riga .carta { border-width: 2px; }
+.fine { text-align: center; font-family: 'Deco', 'Cinzel', serif; font-size: 34px; color: #ffe0a0; margin: 20px 0; }
+.attesa { text-align: center; color: #cdbfa7; font-style: italic; }

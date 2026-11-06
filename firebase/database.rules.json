@@ -53,6 +53,49 @@
           ".write": "auth != null && $uid === auth.uid",
           ".validate": "newData.hasChildren(['stato']) && newData.child('stato').isString() && newData.child('stato').val().length <= 1500000"
         }
+      },
+      "telefoni": {
+        "$code": {
+          ".write": "auth != null && data.child('host').val() === auth.uid && !newData.exists()",
+          ".validate": "$code.length === 4",
+          "host": {
+            ".read": "auth != null",
+            ".write": "auth != null && !data.exists() && newData.val() === auth.uid"
+          },
+          "created": {
+            ".read": "auth != null",
+            ".write": "auth != null && !data.exists()"
+          },
+          "stato": {
+            ".read": "auth != null",
+            ".write": "auth != null && root.child('lotrduel/telefoni/' + $code + '/host').val() === auth.uid",
+            ".validate": "newData.isString() && newData.val().length <= 60000"
+          },
+          "segreti": {
+            "$uid": {
+              ".read": "auth != null && ($uid === auth.uid || root.child('lotrduel/telefoni/' + $code + '/host').val() === auth.uid)",
+              ".write": "auth != null && root.child('lotrduel/telefoni/' + $code + '/host').val() === auth.uid",
+              ".validate": "newData.isString() && newData.val().length <= 4000"
+            }
+          },
+          "giocatori": {
+            ".read": "auth != null",
+            "$uid": {
+              ".write": "auth != null && ($uid === auth.uid || root.child('lotrduel/telefoni/' + $code + '/host').val() === auth.uid)",
+              ".validate": "!newData.exists() || (newData.hasChildren(['nome']) && newData.child('nome').isString() && newData.child('nome').val().length <= 20)"
+            }
+          },
+          "azioni": {
+            ".read": "auth != null && root.child('lotrduel/telefoni/' + $code + '/host').val() === auth.uid",
+            "$id": {
+              ".write": "auth != null && ((!data.exists() && newData.child('da').val() === auth.uid) || (root.child('lotrduel/telefoni/' + $code + '/host').val() === auth.uid && !newData.exists()))",
+              ".validate": "!newData.exists() || (newData.hasChildren(['da', 'p', 'k']) && newData.child('k').isString() && newData.child('k').val().length <= 12)"
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
       }
     }
   }

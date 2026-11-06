@@ -35,13 +35,8 @@ jobs:
           unzip -q -j Godot_v4.7-stable_export_templates.tpz templates/web_nothreads_release.zip -d $T
           cp $T/web_nothreads_release.zip $T/web_nothreads_debug.zip
 
-      - name: Esporta la versione web
-        run: |
-          mkdir -p build/web
-          ./Godot_v4.7-stable_linux.x86_64 --headless --path . --import || true
-          ./Godot_v4.7-stable_linux.x86_64 --headless --path . --export-release "Web" build/web/index.html
-          test -f build/web/index.pck
-          touch build/web/.nojekyll
+      - name: Esporta la TV e copia la pagina dei telefoni
+        run: tools/costruisci_web.sh $PWD/Godot_v4.7-stable_linux.x86_64
 
       # Ludoteca privata: con i segreti CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID pubblica il gioco su
       # https://lotr-duel.<dominio>/ protetto da email e codice. Senza segreti non fa nulla.

@@ -21,6 +21,17 @@ Si gioca qui: https://tannoiser2.github.io/LOTR-DUEL/ (e, con i segreti Cloudfla
 - **Due giocatori sullo stesso dispositivo** con schermata di passaggio, e **partite online** con stanze di 4 lettere
   su Firebase; **salvataggio** automatico sul dispositivo e su Firebase.
 
+## Giocare col telefono
+
+Durante la partita (contro il computer, in due sulla stessa TV oppure online) il pulsante **«Gioca col
+telefono»** nella barra a destra mostra un QR code e un codice di 4 lettere. Chi lo inquadra sceglie Gandalf
+o il Balrog: le sue carte passano sul telefono e spariscono dalla TV. Sul telefono in alto c'è la barra
+dell'energia; si tocca una carta per ingrandirla e «Gioca questa carta» per giocarla (sono attive solo le
+carte giocabili). Anche le scelte (carte per il finale, chi inizia, Incantesimo, Magia, Frusta) si fanno dal
+telefono. La pagina del telefono è `web/telefono.html`; il collegamento passa per Firebase
+(radice `lotrduel/telefoni`, regole in `firebase/database.rules.json`). Per provarlo senza Firebase,
+nello stesso browser: `index.html?rete=locale` e `telefono.html?rete=locale&s=CODICE`.
+
 ## Suoni
 
 Ruggiti e lamenti del Balrog, voci di Gandalf, incantesimi e colpi vengono dall'**Oculus Audio Pack**
