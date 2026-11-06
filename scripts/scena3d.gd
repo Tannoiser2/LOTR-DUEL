@@ -1132,22 +1132,50 @@ func _onda_su(p: Vector3, col: Color) -> void:
 	tw.tween_callback(mi.queue_free)
 
 ## Fine partita: il ponte si spezza sotto lo sconfitto, che precipita nell'abisso.
-func caduta(perdente: String) -> void:
-	var f: Node3D = figure[perdente]
-	anima(perdente, "caduta")
-	anima(Motore.altro(perdente), "vittoria")
-	var tw := create_tween()
-	tw.tween_interval(0.6)
-	tw.tween_property(f, "position", f.position + Vector3(0, 0.3, 0), 0.25)
-	tw.tween_property(f, "position", f.position + Vector3(0, -38, 0), 2.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.parallel().tween_property(f, "rotation:z", f.rotation.z + 2.5, 2.2)
-	scossa = 1.0
+## Fine partita: i due salgono fino alla cima del ponte e si scontrano; il ponte si spezza sotto
+## lo sconfitto, che precipita nell'abisso. Restituisce i secondi prima della caduta.
+func caduta(perdente: String) -> float:
 	var vinc := Motore.altro(perdente)
-	_lampo(vinc, 10.0)
+	var tm := 0.0
+	var cima := {"G": Vector3(-0.85, 0.34 + 5 * PASSO_Y, 0), "B": Vector3(1.05, 0.34 + 5 * PASSO_Y, 0)}
+	for chi in ["G", "B"]:
+		var da: int = gradino[chi]
+		var tw := create_tween()
+		var prima: Vector3 = figure[chi].position
+		for k in range(da + 1, 6):
+			var p: Vector3 = pos_gradino(chi, k) if k < 5 else cima[chi]
+			tw.tween_property(figure[chi], "position", (prima + p) * 0.5 + Vector3(0, 0.4, 0), 0.17)
+			tw.tween_property(figure[chi], "position", p, 0.17)
+			prima = p
+			suoni.suona("passo", -4.0 if chi == "G" else 0.0, (k - da - 1) * 0.34 + 0.15, 1.0 if chi == "G" else 0.6)
+		if da < 5:
+			anima(chi, "sali")
+		else:
+			tw.tween_property(figure[chi], "position", cima[chi], 0.3)
+		tm = max(tm, (5 - da) * 0.34 + 0.3)
+		gradino[chi] = 5
+	# lo scontro in cima
+	get_tree().create_timer(tm).timeout.connect(func():
+		anima("G", "attacco")
+		anima("B", "attacco")
+		_fulmine(_testa("G"), _testa("B"), COL_G)
+		_palla_fuoco(_testa("B"), _testa("G"))
+		_esplosione((_testa("G") + _testa("B")) * 0.5, Color(1, 0.85, 0.6), 220, 2.5)
+		suoni.suona("fulmine", 0.0)
+		suoni.suona("balrog_ruggito_forte", 0.0, 0.1)
+		scossa = 1.0)
+	var t0 := tm + 0.9
+	var f: Node3D = figure[perdente]
+	var tw2 := create_tween()
+	tw2.tween_interval(t0)
+	tw2.tween_callback(func(): anima(perdente, "caduta"); anima(vinc, "vittoria"); scossa = 1.0; _lampo(vinc, 10.0))
+	tw2.tween_property(f, "position:y", cima[perdente].y + 0.3, 0.25)
+	tw2.tween_property(f, "position", cima[perdente] + Vector3(0, -38, 0), 2.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw2.parallel().tween_property(f, "rotation:z", f.rotation.z + 2.5, 2.2)
 	if perdente == "B":
-		suoni.suona("gandalf_non_passerai", 2.0, 0.0)
-		suoni.suona("balrog_caduta", -2.0, 1.6)
+		suoni.suona("gandalf_non_passerai", 2.0, t0 - 0.6)
+		suoni.suona("balrog_caduta", -2.0, t0 + 1.0)
 	else:
-		suoni.suona("gandalf_caduta", 0.0, 0.5)
-	if vinc == "B":
-		suoni.suona("balrog_vittoria", -2.0, 2.4)
+		suoni.suona("gandalf_caduta", 0.0, t0 + 0.3)
+		suoni.suona("balrog_vittoria", -2.0, t0 + 2.4)
+	return t0

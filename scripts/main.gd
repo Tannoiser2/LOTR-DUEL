@@ -6,7 +6,7 @@ extends Node
 const SALVA_LOCALE := "user://partita_lotrduel.json"
 const CW := 108.0   # larghezza carta in mano
 const CH := 167.0
-const BARRA := 250.0   # larghezza della barra di stato a destra
+const BARRA := 196.0   # larghezza della barra di stato a destra
 const COL_ORO := Color(0.93, 0.8, 0.5)
 const COL_G := Color(0.78, 0.86, 1.0)
 const COL_B := Color(1.0, 0.5, 0.2)
@@ -62,6 +62,9 @@ var gap_idx := -1
 var vola_idx := -1
 var vola_da := Vector2.ZERO
 var riga_lay := {}
+var box_scoperte: Control
+var mano_sinistra := 0.0
+var mano_destra := 0.0
 var lbl_ultimo: Label
 
 func _ready() -> void:
@@ -522,18 +525,23 @@ func _apri_tavolo() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	barra.add_child(vb)
-	lbl_titolo = etichetta("", F_TITOLO, 24, COL_ORO)
+	lbl_titolo = etichetta("", F_TITOLO, 20, COL_ORO)
 	lbl_titolo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(lbl_titolo)
 	var griglia := GridContainer.new()
 	griglia.columns = 2
 	griglia.add_theme_constant_override("h_separation", 6)
 	griglia.add_theme_constant_override("v_separation", 6)
-	for b2 in [bottone("Visuale", _cambia_visuale, Color(0.15, 0.12, 0.1), 15), bottone("Diario", _apri_diario, Color(0.15, 0.12, 0.1), 15), bottone("Regole", mostra_regole, Color(0.15, 0.12, 0.1), 15), bottone("Menu", _chiedi_menu, Color(0.15, 0.12, 0.1), 15)]:
+	for b2 in [bottone("Visuale", _cambia_visuale, Color(0.15, 0.12, 0.1), 12), bottone("Diario", _apri_diario, Color(0.15, 0.12, 0.1), 12), bottone("Regole", mostra_regole, Color(0.15, 0.12, 0.1), 12), bottone("Menu", _chiedi_menu, Color(0.15, 0.12, 0.1), 12)]:
+		b2.add_theme_stylebox_override("normal", _stile_piccolo(Color(0.15, 0.12, 0.1)))
+		b2.add_theme_stylebox_override("hover", _stile_piccolo(Color(0.25, 0.18, 0.12)))
+		b2.add_theme_stylebox_override("pressed", _stile_piccolo(Color(0.1, 0.08, 0.06)))
 		b2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		griglia.add_child(b2)
 	vb.add_child(griglia)
-	var b_audio := bottone("Audio: sì" if scena.suoni.attivo else "Audio: no", func(): pass, Color(0.15, 0.12, 0.1), 15)
+	var b_audio := bottone("Audio: sì" if scena.suoni.attivo else "Audio: no", func(): pass, Color(0.15, 0.12, 0.1), 12)
+	b_audio.add_theme_stylebox_override("normal", _stile_piccolo(Color(0.15, 0.12, 0.1)))
+	b_audio.add_theme_stylebox_override("hover", _stile_piccolo(Color(0.25, 0.18, 0.12)))
 	b_audio.pressed.connect(func(): b_audio.text = "Audio: sì" if scena.suoni.cambia() else "Audio: no")
 	vb.add_child(b_audio)
 	lbl_ponte = etichetta("", F_TITOLO, 1, COL_TESTO)
@@ -589,6 +597,9 @@ func _apri_tavolo() -> void:
 	box_mano.offset_top = -CH - 12
 	box_mano.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(box_mano)
+	box_scoperte = Control.new()
+	box_scoperte.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tavolo.add_child(box_scoperte)
 	lbl_incantata = Control.new()
 	lbl_incantata.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tavolo.add_child(lbl_incantata)
@@ -615,6 +626,15 @@ func _apri_tavolo() -> void:
 	tavolo.add_child(dialogo)
 	get_viewport().size_changed.connect(_aggiorna)
 	_aggiorna()
+
+func _stile_piccolo(col: Color) -> StyleBoxFlat:
+	var sb := stile(col, Color(0.62, 0.47, 0.22), 7, 1)
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	sb.shadow_size = 2
+	return sb
 
 func _costruisci_diario() -> void:
 	var p := pannello(Color(0.05, 0.03, 0.02, 0.94))
@@ -779,8 +799,8 @@ func _anima(ev: Array) -> void:
 				_dopo(t, func(): scena.sali(ee["vincitore"], ee["da"], ee["a"]); _banner(("Gandalf" if ee["vincitore"] == "G" else "Il Balrog") + " vince il duello"))
 				t += 1.8
 			"fine_partita":
-				_dopo(t, func(): scena.caduta(Motore.altro(ee["vincitore"])); _fine_partita())
-				t += 2.0
+				_dopo(t, func(): _fine_partita(scena.caduta(Motore.altro(ee["vincitore"]))))
+				t += 6.0
 			"duello":
 				_dopo(t, func(): _banner("Duello finale" if ee["n"] == 4 else "Duello %d" % ee["n"]))
 				if ee["n"] == 4:
@@ -1013,8 +1033,8 @@ func _disegna_traccia(_vs: Vector2) -> void:
 	# altezza fissa: dipende solo dallo schermo, lascia sotto lo spazio per le informazioni
 	var chh: float = clamp((vs.y - 150.0 - 260.0) / 20.0, 11.0, 26.0)
 	traccia.custom_minimum_size = Vector2(BARRA - 30, 26 + 20 * chh + 46)
-	var cw := 70.0
-	var x0 := (BARRA - 30 - cw) * 0.5 - 10
+	var cw := 54.0
+	var x0 := (BARRA - 30 - cw) * 0.5 - 8
 	var lab := etichetta("Energia", F_TITOLO, 16, COL_ORO)
 	lab.size = Vector2(BARRA - 30, 22)
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1056,7 +1076,7 @@ func _disegna_traccia(_vs: Vector2) -> void:
 		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		traccia.add_child(g)
 	var vuote: int = max(0, abs(st["energia"]["G"] - st["energia"]["B"]) - 1)
-	var info := etichetta("Gandalf %d, Balrog %d, vuote %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 15, Color(0.9, 0.86, 0.78))
+	var info := etichetta("G %d, B %d, vuote %d" % [st["energia"]["G"], st["energia"]["B"], vuote], F_TESTO, 14, Color(0.9, 0.86, 0.78))
 	info.size = Vector2(BARRA - 30, 22)
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.position = Vector2(0, 30 + 20 * chh)
@@ -1087,11 +1107,22 @@ func _disegna_mano(vs: Vector2) -> void:
 	if chi == "B" and inc != -1:
 		ordinate.append(inc)
 	var n := ordinate.size()
+	mano_sinistra = (vs.x - BARRA) * 0.5
+	mano_destra = mano_sinistra
 	if n == 0:
 		return
 	var area := vs.x - BARRA
-	var passo: float = min(CW + 6, (area - 60) / max(1, n))
-	var x0: float = area * 0.5 - (passo * (n - 1) + CW) * 0.5
+	# a sinistra resta lo spazio per le carte scoperte dell'avversario
+	var sx := 30.0
+	var k_sc := _quante_scoperte()
+	if k_sc > 0:
+		var hs := (CH - 26.0) * 0.5
+		sx = 30.0 + ceil(k_sc / 2.0) * (hs / 1.55 + 4) + 20.0
+	var largo_area := area - sx - 30.0
+	var passo: float = min(CW + 6, (largo_area - CW) / max(1, n - 1)) if n > 1 else CW
+	var x0: float = sx + largo_area * 0.5 - (passo * (n - 1) + CW) * 0.5
+	mano_sinistra = x0
+	mano_destra = x0 + passo * (n - 1) + CW
 	for k in ordinate.size():
 		var id: int = ordinate[k]
 		var c := _carta_cliccabile(id, CW, CH, _contiene(opz, id))
@@ -1148,33 +1179,53 @@ func _clic_carta(id: int) -> void:
 	if a["tipo"] == "gioca" or a["tipo"] == "difesa":
 		_applica({"tipo": a["tipo"], "v": id})
 
+func _quante_scoperte() -> int:
+	var chi := Motore.altro(spettatore())
+	var vede := Motore.vede_mano(st, spettatore())
+	var k := 0
+	for id in st["mano"][chi]:
+		if vede or (spettatore() == "G" and id in st["rivelate"]):
+			k += 1
+	return k
+
 func _disegna_avversario(vs: Vector2) -> void:
 	svuota(box_avv)
 	var chi := Motore.altro(spettatore())
 	var mano: Array = st["mano"][chi].duplicate()
 	mano.sort()
 	var vede := Motore.vede_mano(st, spettatore())
-	var nome := etichetta("%s: %d cart%s in mano%s" % [nomi[chi], mano.size(), "a" if mano.size() == 1 else "e", " (scoperte)" if vede else ""], F_TITOLO, 15, COL_G if chi == "G" else COL_B)
+	var nome := etichetta("%s\n%d cart%s in mano%s" % [nomi[chi], mano.size(), "a" if mano.size() == 1 else "e", ", scoperte" if vede else ""], F_TITOLO, 13, COL_G if chi == "G" else COL_B)
 	box_avv.add_child(nome)
 	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nome.custom_minimum_size = Vector2(BARRA - 34, 0)
-	nome.size = Vector2(BARRA - 34, 40)
-	var w := 44.0
-	var h := 68.0
-	var k := 0
+	nome.size = Vector2(BARRA - 34, 64)
+	box_avv.custom_minimum_size = Vector2(BARRA - 34, 64)
+	# le carte scoperte dell'avversario: piccole, accanto alla tua mano, su due righe
+	svuota(box_scoperte)
+	var scoperte := []
 	for id in mano:
-		var scoperta: bool = vede or (spettatore() == "G" and id in st["rivelate"])
-		if not scoperta:
-			continue
-		var t := immagine_carta(tex_carta(id), w, h)
-		t.position = Vector2((k % 5) * (w + 3), 44 + (k / 5) * (h + 3))
+		if vede or (spettatore() == "G" and id in st["rivelate"]):
+			scoperte.append(id)
+	if scoperte.is_empty():
+		return
+	var h := (CH - 26.0) * 0.5
+	var w := h / 1.55
+	var colonne := int(ceil(scoperte.size() / 2.0))
+	var area := vs.x - BARRA
+	var largo := colonne * (w + 4)
+	var x0: float = max(12.0, mano_sinistra - 16.0 - largo)
+	var y0: float = vs.y - CH - 12.0
+	var tit := etichetta("Carte di " + nomi[chi], F_CORSIVO, 14, COL_G if chi == "G" else COL_B)
+	tit.position = Vector2(x0, y0 - 2)
+	box_scoperte.add_child(tit)
+	for k in scoperte.size():
+		var t := immagine_carta(tex_carta(scoperte[k]), w, h)
+		t.position = Vector2(x0 + (k % colonne) * (w + 4), y0 + 22 + (k / colonne) * (h + 4))
 		t.mouse_filter = Control.MOUSE_FILTER_PASS
-		t.pivot_offset = Vector2(0, 0)
-		t.mouse_entered.connect(func(): t.scale = Vector2(3, 3); t.z_index = 10)
+		t.pivot_offset = Vector2(w * 0.5, h)
+		t.mouse_entered.connect(func(): t.scale = Vector2(2.6, 2.6); t.z_index = 10)
 		t.mouse_exited.connect(func(): t.scale = Vector2.ONE; t.z_index = 0)
-		box_avv.add_child(t)
-		k += 1
-	box_avv.custom_minimum_size = Vector2(BARRA - 34, 42 + (0 if k == 0 else (h + 4) * ceil(k / 5.0)))
+		box_scoperte.add_child(t)
 	# la carta incantata, scoperta sul tavolo
 	svuota(lbl_incantata)
 	var inc: int = st["f"].get("incantata", -1)
@@ -1419,25 +1470,44 @@ func _mostra_esito(e: Dictionary) -> void:
 	v.add_child(l)
 	v.add_child(bottone("Continua", func(): _applica({"tipo": "avanti", "v": true}), Color(0.35, 0.14, 0.06), 22))
 
-func _fine_partita() -> void:
+## Il riquadro di fine partita sta in alto, al posto della fila di carte, così la scena resta libera.
+func _fine_partita(attesa := 2.0) -> void:
 	in_partita = true
+	svuota(dialogo)
 	var ho_vinto: bool = modo == "locale" or st["vincitore"] == io
-	scena.suoni.suona("musica_vittoria" if ho_vinto else "musica_sconfitta", -4.0, 2.0)
-	var v := _finestra("")
+	scena.suoni.suona("musica_vittoria" if ho_vinto else "musica_sconfitta", -4.0, attesa + 2.0)
+	box_riga.visible = false
+	svuota(popup_scambio)
 	var vinc: String = st["vincitore"]
-	var t := etichetta(("Gandalf" if vinc == "G" else "Il Balrog") + " vince!", F_DECO, 54, COL_G if vinc == "G" else COL_B)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(t)
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", stile(Color(0.05, 0.03, 0.02, 0.88), COL_G if vinc == "G" else COL_B, 14, 2))
+	p.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	p.offset_left = 14
+	p.offset_right = -BARRA - 14
+	p.offset_top = 10
+	tavolo.add_child(p)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 26)
+	p.add_child(h)
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(v)
+	v.add_child(etichetta(("Gandalf" if vinc == "G" else "Il Balrog") + " vince!", F_DECO, 44, COL_G if vinc == "G" else COL_B))
 	var frase := "Tu non puoi passare! Il Balrog precipita nell'abisso." if vinc == "G" else "Il ponte si spezza: Gandalf cade nell'ombra di Moria."
-	var l := etichetta(frase, F_CORSIVO, 22)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(l)
+	v.add_child(etichetta(frase, F_CORSIVO, 20))
 	var es := ""
 	for e in st["esiti"]:
-		es += "%s: vince %s (+%d)\n" % ["Finale" if e["duello"] == 4 else "Duello %d" % e["duello"], "Gandalf" if e["vincitore"] == "G" else "Balrog", e["passi"]]
-	v.add_child(etichetta(es, F_TESTO, 18))
-	v.add_child(bottone("Nuova partita", func(): _nuova(modo if modo != "online" else "ia", io, livello), Color(0.35, 0.14, 0.06), 22))
-	v.add_child(bottone("Menu", mostra_menu, Color(0.15, 0.13, 0.12)))
+		es += "%s: %s (+%d)\n" % ["Finale" if e["duello"] == 4 else "Duello %d" % e["duello"], "Gandalf" if e["vincitore"] == "G" else "Balrog", e["passi"]]
+	h.add_child(etichetta(es.strip_edges(), F_TESTO, 17))
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.add_child(vb)
+	vb.add_child(bottone("Nuova partita", func(): _nuova(modo if modo != "online" else "ia", io, livello), Color(0.35, 0.14, 0.06), 18))
+	vb.add_child(bottone("Menu", mostra_menu, Color(0.15, 0.13, 0.12), 16))
+	p.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_interval(attesa + 1.2)
+	tw.tween_property(p, "modulate:a", 1.0, 0.6)
 	_salva(true)
 
 func _conferma(testo: String, si: Callable) -> void:
