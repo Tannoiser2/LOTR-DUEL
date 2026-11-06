@@ -93,6 +93,11 @@ function disegna() {
   document.querySelectorAll('.grande').forEach((x) => x.remove());
   if (!io) { schermataRuolo(); return; }
   if (!S) { app.innerHTML = '<p class="attesa">Collegamento con la TV...</p>'; return; }
+  if (S.chiusa) {
+    app.innerHTML = `<h1>Il Duello</h1><div class="box"><p>La partita è finita: la TV è tornata al menu.</p>
+      <p class="piccolo">Quando sulla TV parte una nuova partita, puoi riprendere le carte da qui.</p></div>`;
+    return;
+  }
   const ruolo = io.ruolo;
   const tipo = M?.tipo || '';
   const mio = M && M.n !== inviato && tipo;
@@ -128,8 +133,21 @@ function disegna() {
   const conferma = (mio && tipo === 'riserva') ? `<button class="primario" id="conf" ${selezione.length === M.quante ? '' : 'disabled'}>Conferma</button>` : '';
   app.innerHTML = `${barraEnergia()}<div class="messaggio ${mio ? 'tocca' : ''}">${esc(msg)}</div>${corpo}
     ${S.fine ? '' : `<div class="mano">${carte}</div>${conferma}`}${scop}
+    <div class="comandi"><button id="visuale">Visuale</button><button id="menu">Finisci l'incontro</button></div>
     <p class="piccolo" style="text-align:center">${esc(nome)}: sei ${NOMI[ruolo]} &middot; stanza ${esc(codice)}</p>`;
   // gestori
+  const comando = (tipo) => rete.push(`${RADICE}/${codice}/azioni`, { da: uid, p: JSON.stringify({ tipo, n: -1 }), k: 'c' });
+  app.querySelector('#visuale')?.addEventListener('click', () => comando('visuale'));
+  app.querySelector('#menu')?.addEventListener('click', () => {
+    const d = document.createElement('div');
+    d.className = 'grande';
+    d.innerHTML = `<div class="box" style="max-width:420px"><h2>Finire l'incontro?</h2>
+      <p>La TV torna al menu. La partita resta salvata e si può riprendere.</p>
+      <button class="primario" id="sicuro">Sì, torna al menu</button><button id="annulla">Annulla</button></div>`;
+    document.body.appendChild(d);
+    d.querySelector('#annulla').onclick = () => d.remove();
+    d.querySelector('#sicuro').onclick = () => { d.remove(); comando('menu'); };
+  });
   app.querySelector('#si')?.addEventListener('click', () => invia(tipo, true));
   app.querySelector('#no')?.addEventListener('click', () => invia(tipo, false));
   app.querySelector('#avanti')?.addEventListener('click', () => invia('avanti', true));

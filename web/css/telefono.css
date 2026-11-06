@@ -55,3 +55,5 @@ button.primario { background: #6b2008; border-color: #e0a85a; font-size: 24px; }
 .riga .carta { border-width: 2px; }
 .fine { text-align: center; font-family: 'Deco', 'Cinzel', serif; font-size: 34px; color: #ffe0a0; margin: 20px 0; }
 .attesa { text-align: center; color: #cdbfa7; font-style: italic; }
+.comandi { display: flex; gap: 10px; margin-top: 12px; }
+.comandi button { flex: 1; font-size: 16px; padding: 8px; background: #241510; }

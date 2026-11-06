@@ -176,8 +176,12 @@ func immagine_carta(tex: Texture2D, w: float, h: float) -> TextureRect:
 
 func mostra_menu() -> void:
 	in_partita = false
+	if telefoni and telefoni.codice != "":
+		telefoni.stato({"chiusa": true, "consentiti": [], "ruoli": {"G": "", "B": ""}})
 	svuota(radice)
 	scena.spostamento_px = 0.0
+	scena.visuale(0)
+	scena.mira_y = 1.4
 	scena.auto_giro = true
 	scena.metti_figure(0, 0)
 	var centro := CenterContainer.new()
@@ -516,6 +520,10 @@ func _apri_tavolo() -> void:
 	scena.visuale(0)
 	scena.spostamento_px = BARRA * 0.5
 	scena.suoni.avvia_sottofondo()
+	for k in tel.keys():
+		if not (k in _ruoli_consentiti()):
+			telefoni.togli(tel[k]["uid"])
+			tel.erase(k)
 	# per le prove: ?tel apre subito la stanza dei telefoni
 	if OS.has_feature("web") and str(JavaScriptBridge.eval("new URLSearchParams(location.search).has('tel')")) == "true":
 		_apri_telefono.call_deferred()
@@ -775,6 +783,14 @@ func _evento_telefono(e: Dictionary) -> void:
 			_aggiorna()
 		"azione":
 			var d = JSON.parse_string(str(e.get("p", "")))
+			if d is Dictionary and _da_telefono(str(e.get("uid", ""))) and d.get("tipo", "") in ["visuale", "menu"]:
+				if d["tipo"] == "visuale" and in_partita:
+					_cambia_visuale()
+				elif d["tipo"] == "menu" and in_partita:
+					_avviso("La partita è stata chiusa dal telefono.")
+					_salva(true)
+					mostra_menu()
+				return
 			if not (d is Dictionary) or not in_partita or occupato > 0.0 and d.get("tipo", "") != "avanti":
 				if d is Dictionary and in_partita:
 					# animazione in corso: la mossa si applica appena finisce
@@ -798,6 +814,12 @@ func _evento_telefono(e: Dictionary) -> void:
 					vv.append(int(x))
 				v = vv
 			_applica({"tipo": str(d.get("tipo", "")), "v": v})
+
+func _da_telefono(uid: String) -> bool:
+	for k in tel:
+		if tel[k]["uid"] == uid:
+			return true
+	return false
 
 ## Manda a ogni telefono lo stato della partita e, solo a lui, le sue carte e la domanda.
 func _invia_telefoni() -> void:
